@@ -105,4 +105,280 @@
   .chart-top #chart{
     height:430px !important;
   }
+}/* ===== ZYCH DESKTOP V1: HEADER + MARKET PULSE ===== */
+
+.topbar{
+  height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:0 22px;
+  background:#05080c;
+  border-bottom:1px solid #172028;
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+
+.topbar .brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  text-decoration:none;
+  color:#f4f7f8;
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:1px;
+  min-width:max-content;
+}
+
+.topbar .mark{
+  width:34px;
+  height:34px;
+  border-radius:8px;
+  display:grid;
+  place-items:center;
+  background:#19e6a4;
+  color:#04110d;
+  font-weight:900;
+  box-shadow:0 0 22px rgba(25,230,164,.18);
+}
+
+.main-nav{
+  display:flex;
+  align-items:center;
+  gap:26px;
+  margin-right:auto;
+}
+
+.main-nav a{
+  color:#a9b4bc;
+  text-decoration:none;
+  font-size:13px;
+  font-weight:600;
+  transition:.15s ease;
+}
+
+.main-nav a:hover{
+  color:#ffffff;
+}
+
+.top-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.coin-search{
+  width:250px;
+  height:34px;
+  display:flex;
+  align-items:center;
+  padding:0 12px;
+  border:1px solid #1d2830;
+  border-radius:9px;
+  background:#0b1116;
+  color:#73808a;
+  font-size:12px;
+}
+
+.icon-btn,
+.login-btn{
+  height:34px;
+  border:1px solid #1d2830;
+  border-radius:8px;
+  background:#0b1116;
+  color:#c7d0d6;
+  cursor:pointer;
+}
+
+.icon-btn{
+  width:36px;
+}
+
+.login-btn{
+  padding:0 16px;
+  color:#19e6a4;
+  border-color:#176f53;
+  font-weight:700;
+}
+
+.market-pulse{
+  display:grid;
+  grid-template-columns:
+    minmax(140px,1fr)
+    minmax(140px,1fr)
+    minmax(140px,1fr)
+    minmax(150px,1fr)
+    minmax(140px,1fr)
+    minmax(160px,1fr)
+    minmax(150px,1fr)
+    minmax(160px,1fr);
+  gap:8px;
+  padding:10px 12px;
+  background:#070b0f;
+  border-bottom:1px solid #172028;
+  overflow-x:auto;
+}
+
+.pulse-card{
+  min-height:58px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 11px;
+  background:#0b1116;
+  border:1px solid #1b252d;
+  border-radius:10px;
+  white-space:nowrap;
+}
+
+.pulse-card > div{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.pulse-card b{
+  font-size:11px;
+  color:#aab5bd;
+  font-weight:700;
+}
+
+.pulse-card strong{
+  color:#f5f7f8;
+  font-size:14px;
+  line-height:1;
+}
+
+.pulse-card > span:last-child{
+  margin-left:auto;
+  font-size:11px;
+  font-weight:800;
+}
+
+.coin-icon{
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  font-size:14px;
+  font-weight:900;
+  color:#fff;
+  flex:0 0 auto;
+}
+
+.coin-icon.btc{
+  background:#f7931a;
+}
+
+.coin-icon.eth{
+  background:#627eea;
+}
+
+.coin-icon.sol{
+  background:#171b24;
+  border:1px solid #33404a;
+  color:#18e6a4;
+}
+
+.up{
+  color:#18e6a4;
+}
+
+.down{
+  color:#ff4d5a;
+}
+
+.fear{
+  color:#ff5d47;
+}
+
+.neutral{
+  color:#f4c842;
+}
+
+.fear-card{
+  border-color:#473124;
+  background:linear-gradient(180deg,#111316,#0d1013);
+}
+
+/* Compact desktop working area */
+main{
+  margin:0 !important;
+}
+
+.chart-top{
+  padding-top:16px !important;
+}
+
+/* Tablet */
+@media(max-width:1100px){
+  .main-nav{
+    display:none;
+  }
+
+  .coin-search{
+    width:180px;
+  }
+
+  .market-pulse{
+    display:flex;
+  }
+
+  .pulse-card{
+    min-width:155px;
+  }
+}
+
+/* Mobile */
+@media(max-width:700px){
+  .topbar{
+    height:52px;
+    padding:0 10px;
+  }
+
+  .topbar .brand{
+    font-size:18px;
+  }
+
+  .topbar .mark{
+    width:30px;
+    height:30px;
+  }
+
+  .coin-search,
+  .icon-btn{
+    display:none;
+  }
+
+  .login-btn{
+    height:32px;
+    padding:0 12px;
+    font-size:12px;
+  }
+
+  .market-pulse{
+    display:flex;
+    gap:6px;
+    padding:7px 8px;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+
+  .market-pulse::-webkit-scrollbar{
+    display:none;
+  }
+
+  .pulse-card{
+    min-width:145px;
+    min-height:52px;
+    padding:7px 9px;
+  }
+
+  .pulse-card strong{
+    font-size:13px;
+  }
 }
