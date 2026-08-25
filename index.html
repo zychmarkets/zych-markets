@@ -55,6 +55,16 @@
 <section class="section">
   <div class="eyebrow">LIVE CHART</div>
   <h2>BTC / USDT</h2>
+ <div id="timeframes" style="display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 18px;">
+  <button data-interval="1m">1m</button>
+  <button data-interval="5m">5m</button>
+  <button data-interval="15m">15m</button>
+  <button data-interval="30m">30m</button>
+  <button data-interval="1h">1h</button>
+  <button data-interval="4h">4h</button>
+  <button data-interval="1d">1D</button>
+  <button data-interval="1w">1W</button>
+</div>
   <div id="chart" style="width:100%; height:500px;"></div>
 </section>
    
@@ -86,8 +96,8 @@
   });
 
   const candles = chart.addSeries(LightweightCharts.CandlestickSeries);
-
-  fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=200')
+function loadCandles(interval) {
+  fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=200`)
     .then(response => response.json())
     .then(data => {
       candles.setData(data.map(k => ({
@@ -100,6 +110,16 @@
 
       chart.timeScale().fitContent();
     });
+}
+
+loadCandles('1h');
+
+document.querySelectorAll('#timeframes button').forEach(button => {
+  button.addEventListener('click', () => {
+    loadCandles(button.dataset.interval);
+  });
+});
+ 
 
   window.addEventListener('resize', () => {
     chart.applyOptions({ width: container.clientWidth });
