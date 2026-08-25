@@ -52,7 +52,13 @@
       <div><div class="eyebrow">THE PLATFORM</div><h2>One view of the crypto market.</h2></div>
       <p>ZYCH is being developed as a modern market-monitoring platform: fast access to selected cryptocurrencies, multi-exchange data, charts and alerts — without unnecessary complexity.</p>
     </section>
-
+<section class="section">
+  <div class="eyebrow">LIVE CHART</div>
+  <h2>BTC / USDT</h2>
+  <div id="chart" style="width:100%; height:500px;"></div>
+</section>
+   
+    
     <section id="contact" class="contact">
       <div class="eyebrow">ZYCH MARKETS</div><h2>Follow the market.<br>Not the noise.</h2>
       <p>Product and partnership enquiries</p>
@@ -62,5 +68,42 @@
 
   <footer><span>© 2026 ZYCH Markets</span><span>Crypto Market Analytics & Alerts Platform</span></footer>
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+  const container = document.getElementById('chart');
+
+  const chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 500,
+    layout: {
+      background: { color: '#0b1115' },
+      textColor: '#d7dee5',
+      attributionLogo: true
+    },
+    grid: {
+      vertLines: { color: '#1d2a31' },
+      horzLines: { color: '#1d2a31' }
+    }
+  });
+
+  const candles = chart.addSeries(LightweightCharts.CandlestickSeries);
+
+  fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=200')
+    .then(response => response.json())
+    .then(data => {
+      candles.setData(data.map(k => ({
+        time: Math.floor(k[0] / 1000),
+        open: Number(k[1]),
+        high: Number(k[2]),
+        low: Number(k[3]),
+        close: Number(k[4])
+      })));
+
+      chart.timeScale().fitContent();
+    });
+
+  window.addEventListener('resize', () => {
+    chart.applyOptions({ width: container.clientWidth });
+  });
+</script>
 </body>
 </html>
