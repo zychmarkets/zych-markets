@@ -1,0 +1,227 @@
+/* ZYCH Markets browser bundle. Keeps direct file:// and HTTP startup equivalent. */
+(() => {
+  'use strict';
+
+  const DEFAULT_WATCHLIST = ['BTC','ETH','SOL','BNB','XRP','ADA','DOGE'];
+  const QUOTE_PRIORITY = ['USDT', 'USDC', 'FDUSD', 'BTC', 'ETH'];
+  const POPULAR_ASSETS = ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','TRX','LINK','AVAX','SUI','DOT','LTC','BCH','UNI','NEAR','AAVE','PEPE','ARB'];
+  const STORAGE_KEY = 'zych.watchlist.v1';
+  const FAVORITE_HINT_KEY = 'zych.favorite-hint.v1';
+  const ASSETS = {
+    BTC:{name:'Bitcoin',icon:'₿',className:'btc'},ETH:{name:'Ethereum',icon:'◆',className:'eth'},SOL:{name:'Solana',icon:'S',className:'sol'},
+    BNB:{name:'BNB',icon:'◆',className:'bnb'},XRP:{name:'XRP',icon:'X',className:'xrp'},ADA:{name:'Cardano',icon:'A',className:'ada'},DOGE:{name:'Dogecoin',icon:'Ð',className:'doge'},
+    LINK:{name:'Chainlink',icon:'L',className:'generic'},SUI:{name:'Sui',icon:'S',className:'generic'},ARB:{name:'Arbitrum',icon:'A',className:'generic'},PEPE:{name:'Pepe',icon:'P',className:'generic'},AVAX:{name:'Avalanche',icon:'A',className:'generic'},TRX:{name:'TRON',icon:'T',className:'generic'},
+    DOT:{name:'Polkadot',icon:'D',className:'generic'},LTC:{name:'Litecoin',icon:'Ł',className:'generic'},BCH:{name:'Bitcoin Cash',icon:'B',className:'generic'},TON:{name:'Toncoin',icon:'T',className:'generic'},SHIB:{name:'Shiba Inu',icon:'S',className:'generic'},UNI:{name:'Uniswap',icon:'U',className:'generic'},NEAR:{name:'NEAR Protocol',icon:'N',className:'generic'},APT:{name:'Aptos',icon:'A',className:'generic'}
+  };
+  let MARKETS = DEFAULT_WATCHLIST.map(asset => ({id:`binance:${asset}USDT`,asset,symbol:`${asset}USDT`,baseAsset:asset,quoteAsset:'USDT',exchange:'binance',enabled:true,status:'TRADING'}));
+  const FUTURE_MARKETS = [
+    {id:'bybit:BTCUSDT',asset:'BTC',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT',exchange:'bybit',enabled:false},
+    {id:'okx:BTCUSDT',asset:'BTC',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT',exchange:'okx',enabled:false},
+    {id:'coinbase:BTCUSD',asset:'BTC',symbol:'BTCUSD',baseAsset:'BTC',quoteAsset:'USD',exchange:'coinbase',enabled:false}
+  ];
+  const EXCHANGES={binance:{label:'Binance'},bybit:{label:'Bybit'},okx:{label:'OKX'},coinbase:{label:'Coinbase'}};
+  const TIMEFRAMES=['1m','5m','15m','30m','1h','4h','1d','1w'];
+  let assetIndex=new Map(),universeStatus='loading',catalogLiquidity=new Map(),catalogSnapshots=new Map();
+  function rebuildAssetIndex(){assetIndex=new Map();MARKETS.forEach(market=>{if(!assetIndex.has(market.asset))assetIndex.set(market.asset,[]);assetIndex.get(market.asset).push(market)});assetIndex.forEach(markets=>markets.sort((a,b)=>QUOTE_PRIORITY.indexOf(a.quoteAsset)-QUOTE_PRIORITY.indexOf(b.quoteAsset)))}
+  rebuildAssetIndex();
+  const marketForAsset=asset=>assetIndex.get(asset)?.[0]||null;
+  const marketsForAsset=asset=>[...(assetIndex.get(asset)||[]),...FUTURE_MARKETS.filter(market=>market.asset===asset)];
+  const marketLabel=market=>`${market.baseAsset} / ${market.quoteAsset}`;
+  const formatPrice=value=>{const number=Number(value);if(!Number.isFinite(number))return'—';const digits=number>=1?2:number>=.1?4:number>=.01?5:number>=.001?6:8;return number.toLocaleString('en-US',{minimumFractionDigits:digits,maximumFractionDigits:digits})};
+  const formatPercent=value=>{const number=Number(value);return Number.isFinite(number)?`${number>=0?'+':'−'}${Math.abs(number).toFixed(2)}%`:'—'};
+  const formatCompact=value=>Number.isFinite(Number(value))?new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:2}).format(Number(value)):'—';
+  const escapeHtml=value=>String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  const applyDirection=(element,value)=>{element.classList.remove('positive','negative');if(Number.isFinite(Number(value)))element.classList.add(Number(value)>=0?'positive':'negative')};
+  const assetMeta=asset=>ASSETS[asset]||{name:asset,icon:asset.slice(0,1),className:'generic'};
+  const iconMarkup=(meta,size='tiny')=>`<i class="coin-icon ${escapeHtml(meta.className)} ${escapeHtml(size)}">${escapeHtml(meta.icon)}</i>`;
+  function storedWatchlist(){try{const value=JSON.parse(localStorage.getItem(STORAGE_KEY));if(!Array.isArray(value))return[...DEFAULT_WATCHLIST];return[...new Set(value.filter(item=>typeof item==='string').map(item=>item.trim().toUpperCase()).filter(item=>/^[A-Z0-9]{1,20}$/.test(item)))].slice(0,50)}catch{return[...DEFAULT_WATCHLIST]}}
+  function saveWatchlist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state.watchlist))}catch{}}
+  function hasStoredWatchlist(){try{return localStorage.getItem(STORAGE_KEY)!==null}catch{return false}}
+  function favoriteHintSeen(){try{return localStorage.getItem(FAVORITE_HINT_KEY)==='seen'}catch{return true}}
+  function dismissFavoriteHint(){try{localStorage.setItem(FAVORITE_HINT_KEY,'seen')}catch{}}
+
+  const state={selectedMarket:marketForAsset('BTC'),selectedTimeframe:'1h',watchlist:storedWatchlist(),marketSnapshots:{},connectionStatus:'CONNECTING',loadingState:{universe:true,snapshots:true,chart:true},errorState:{universe:null,snapshots:null,chart:null}};
+  const updateSnapshot=(id,patch)=>{state.marketSnapshots={...state.marketSnapshots,[id]:{...(state.marketSnapshots[id]||{}),...patch}}};
+
+  const REST='https://api.binance.com/api/v3',WS='wss://stream.binance.com:9443/ws';
+  async function getJson(path,externalSignal){
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(new DOMException('Request timed out','TimeoutError')),10000);
+    const abort=()=>controller.abort(externalSignal?.reason);externalSignal?.addEventListener('abort',abort,{once:true});
+    try{const response=await fetch(`${REST}${path}`,{signal:controller.signal});if(!response.ok)throw new Error(`Binance HTTP ${response.status}`);return await response.json()}
+    finally{clearTimeout(timer);externalSignal?.removeEventListener('abort',abort)}
+  }
+  const marketSockets=new Set();
+  const updateSocketDiagnostics=()=>{document.documentElement.dataset.marketSockets=String(marketSockets.size)};
+  const binance={
+    async exchangeInfo(signal){return getJson('/exchangeInfo',signal)},
+    async allSnapshots(signal){return getJson('/ticker/24hr',signal)},
+    async snapshots(symbols,signal){const rows=await getJson(`/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`,signal);return Object.fromEntries(rows.map(row=>[row.symbol,{symbol:row.symbol,lastPrice:+row.lastPrice,changePercent:+row.priceChangePercent,change:+row.priceChange,high:+row.highPrice,low:+row.lowPrice,volume:+row.quoteVolume}]))},
+    socket(symbol,interval,handlers){const socket=new WebSocket(`${WS}/${symbol.toLowerCase()}@kline_${interval}`);marketSockets.add(socket);updateSocketDiagnostics();socket.addEventListener('open',handlers.open);socket.addEventListener('close',event=>{marketSockets.delete(socket);updateSocketDiagnostics();handlers.close(event)});socket.addEventListener('error',handlers.error);socket.addEventListener('message',event=>{try{const row=JSON.parse(event.data).k;handlers.candle({time:Math.floor(row.t/1000),open:+row.o,high:+row.h,low:+row.l,close:+row.c,volume:+row.v})}catch(error){handlers.error(error)}});return socket}
+  };
+  const historyService=new ZychChartHistory.ChartHistoryService({restBase:REST});
+
+  function normalizeUniverse(info){
+    const leveraged=/(UP|DOWN|BULL|BEAR)$/;
+    const safeTicker=value=>typeof value==='string'&&/^[A-Z0-9]{1,20}$/.test(value);
+    MARKETS=info.symbols.filter(row=>row.status==='TRADING'&&row.isSpotTradingAllowed!==false&&safeTicker(row.symbol)&&safeTicker(row.baseAsset)&&safeTicker(row.quoteAsset)&&QUOTE_PRIORITY.includes(row.quoteAsset)&&!leveraged.test(row.baseAsset)).map(row=>({id:`binance:${row.symbol}`,exchange:'binance',symbol:row.symbol,baseAsset:row.baseAsset,quoteAsset:row.quoteAsset,asset:row.baseAsset,enabled:true,status:row.status}));
+    rebuildAssetIndex();
+    document.documentElement.dataset.universeMarkets=String(MARKETS.length);document.documentElement.dataset.universeAssets=String(assetIndex.size);
+    state.watchlist=state.watchlist.filter(asset=>assetIndex.has(asset));
+    if(!state.watchlist.length&&!hasStoredWatchlist())state.watchlist=DEFAULT_WATCHLIST.filter(asset=>assetIndex.has(asset));
+    if(!assetIndex.has(state.selectedMarket.asset))state.selectedMarket=marketForAsset('BTC')||MARKETS[0];
+  }
+  const liquidityForAsset=asset=>catalogLiquidity.get(asset)||0;
+  const catalogMetric=(asset,key)=>catalogSnapshots.get(asset)?.[key];
+  function searchUniverse(query,mode='top'){
+    const value=query.trim().toUpperCase(),assets=[...assetIndex.keys()];
+    const matches=value?assets.filter(asset=>asset.includes(value)||(assetMeta(asset).name||'').toUpperCase().includes(value)||(assetIndex.get(asset)||[]).some(market=>market.symbol.startsWith(value))):assets;
+    return matches.sort((a,b)=>{const exact=(b===value)-(a===value);if(exact)return exact;const prefix=(b.startsWith(value)?1:0)-(a.startsWith(value)?1:0);if(prefix)return prefix;if(mode==='volume')return liquidityForAsset(b)-liquidityForAsset(a)||a.localeCompare(b);if(mode==='gainers')return (catalogMetric(b,'changePercent')??-Infinity)-(catalogMetric(a,'changePercent')??-Infinity)||liquidityForAsset(b)-liquidityForAsset(a);if(mode==='losers')return (catalogMetric(a,'changePercent')??Infinity)-(catalogMetric(b,'changePercent')??Infinity)||liquidityForAsset(b)-liquidityForAsset(a);const popularA=POPULAR_ASSETS.indexOf(a),popularB=POPULAR_ASSETS.indexOf(b),popular=(popularA<0?999:popularA)-(popularB<0?999:popularB);if(popular)return popular;return liquidityForAsset(b)-liquidityForAsset(a)||a.localeCompare(b)})
+  }
+
+  let activeController=null,activeSocket=null,reconnectTimer=null,generation=0,intentionalClose=false;
+  function stopMarket(){intentionalClose=true;activeController?.abort();activeController=null;clearTimeout(reconnectTimer);reconnectTimer=null;if(activeSocket&&activeSocket.readyState<WebSocket.CLOSING)activeSocket.close(1000,'Market changed');activeSocket=null}
+  function openLive(context){const{market,timeframe,token,onCandle,onStatus}=context;intentionalClose=false;activeSocket=binance.socket(market.symbol,timeframe,{open:()=>token===generation&&onStatus('LIVE'),candle:candle=>token===generation&&onCandle(candle),error:()=>token===generation&&onStatus('OFFLINE'),close:()=>{if(intentionalClose||token!==generation)return;onStatus('RECONNECTING');reconnectTimer=setTimeout(()=>token===generation&&openLive(context),2500)}})}
+  async function selectMarketData(market,timeframe,handlers){
+    stopMarket();const token=++generation;activeController=new AbortController();handlers.onStatus('CONNECTING');
+    try{const result=await historyService.initial(market,timeframe,activeController.signal);if(token!==generation)return;handlers.onCandles(result.data,result);openLive({market,timeframe,token,onCandle:handlers.onCandle,onStatus:handlers.onStatus})}
+    catch(error){if(error.name==='AbortError'||token!==generation)return;handlers.onStatus('OFFLINE');handlers.onError(error)}
+  }
+
+  const chartContainer=document.getElementById('chart'),chartState=document.getElementById('chart-state'),chartHistoryState=document.getElementById('chart-history-state');
+  const chart=LightweightCharts.createChart(chartContainer,{width:chartContainer.clientWidth,height:chartContainer.clientHeight,layout:{background:{color:'#0d1014'},textColor:'#747d86',attributionLogo:true},grid:{vertLines:{color:'#181d23'},horzLines:{color:'#181d23'}},rightPriceScale:{borderColor:'#252c33',scaleMargins:{top:.08,bottom:.22}},timeScale:{borderColor:'#252c33',timeVisible:true,secondsVisible:false}});
+  const themeMarketColor=(property,fallback)=>getComputedStyle(document.documentElement).getPropertyValue(property).trim()||fallback;
+  const bullishColor=()=>themeMarketColor('--positive','#2bc477'),bearishColor=()=>themeMarketColor('--negative','#ed515b');
+  const candleOptions={upColor:bullishColor(),downColor:bearishColor(),borderUpColor:bullishColor(),borderDownColor:bearishColor(),wickUpColor:bullishColor(),wickDownColor:bearishColor(),priceLineColor:bullishColor()};
+  const candles=chart.addSeries?chart.addSeries(LightweightCharts.CandlestickSeries,candleOptions):chart.addCandlestickSeries(candleOptions);
+  const volumeOptions={priceFormat:{type:'volume'},priceScaleId:'',lastValueVisible:false,priceLineVisible:false};
+  const volumes=chart.addSeries?chart.addSeries(LightweightCharts.HistogramSeries,volumeOptions):chart.addHistogramSeries(volumeOptions);volumes.priceScale().applyOptions({scaleMargins:{top:.82,bottom:0}});
+  const volumePoint=candle=>({time:candle.time,value:candle.volume,color:candle.close>=candle.open?'rgba(43,196,119,.34)':'rgba(237,81,91,.32)'});
+  const updatePriceDirection=candle=>{if(!candle)return;const direction=Number(candle.close)>=Number(candle.open)?'bullish':'bearish';candles.applyOptions({priceLineColor:direction==='bullish'?bullishColor():bearishColor()});chartContainer.dataset.priceDirection=direction};
+  new ResizeObserver(entries=>{const{width,height}=entries[0].contentRect;chart.applyOptions({width,height})}).observe(chartContainer);
+  const updateChartDiagnostics=(data,key,pages)=>{chartContainer.dataset.historyKey=key||'';chartContainer.dataset.candleCount=String(data.length);chartContainer.dataset.oldestTime=String(data[0]?.time||'');chartContainer.dataset.newestTime=String(data.at(-1)?.time||'');chartContainer.dataset.historyPages=String(pages||0)};
+  const chartApi={
+    setData:(data,key,pages)=>{candles.setData(data);volumes.setData(data.map(volumePoint));updatePriceDirection(data.at(-1));const latestFrom=Math.max(0,data.length-180);chart.timeScale().setVisibleLogicalRange({from:latestFrom,to:data.length+5});updateChartDiagnostics(data,key,pages)},
+    prepend:(data,added,range,key,pages)=>{candles.setData(data);volumes.setData(data.map(volumePoint));updatePriceDirection(data.at(-1));if(range&&added>0)chart.timeScale().setVisibleLogicalRange({from:range.from+added,to:range.to+added});updateChartDiagnostics(data,key,pages)},
+    update:candle=>{candles.update(candle);volumes.update(volumePoint(candle));updatePriceDirection(candle);chartContainer.dataset.newestTime=String(candle.time)},
+    range:()=>chart.timeScale().getVisibleLogicalRange(),subscribe:handler=>chart.timeScale().subscribeVisibleLogicalRangeChange(handler),
+    loading:text=>{chartState.textContent=text;chartState.hidden=false},ready:()=>{chartState.hidden=true}
+  };
+  let historyContext=null,historyLoading=false,historyStatusTimer=null;
+  const setHistoryStatus=(text,status='loading',linger=0)=>{clearTimeout(historyStatusTimer);chartHistoryState.textContent=text;chartHistoryState.dataset.status=status;chartHistoryState.hidden=!text;if(linger)historyStatusTimer=setTimeout(()=>{chartHistoryState.hidden=true},linger)};
+  async function loadOlderHistory(){
+    const context=historyContext;if(!context||historyLoading||context.endReached||!activeController||activeController.signal.aborted)return;
+    historyLoading=true;const range=chartApi.range();setHistoryStatus('Loading history…');
+    try{const result=await historyService.older(context.market,context.timeframe,activeController.signal);if(historyContext!==context||context.token!==generation)return;context.endReached=result.endReached;chartApi.prepend(result.data,result.added,range,result.key,result.pages);if(result.endReached)setHistoryStatus('Start of available history','end',2600);else setHistoryStatus('', 'idle')}
+    catch(error){if(error.name!=='AbortError'&&historyContext===context)setHistoryStatus('History load failed','error',2600)}
+    finally{if(historyContext===context)historyLoading=false}
+  }
+  chartApi.subscribe(range=>{if(range&&range.from<120)loadOlderHistory()});
+
+  const watchContainer=document.getElementById('watchlist-rows');
+  function renderWatchlist(){
+    watchContainer.innerHTML=state.watchlist.length?state.watchlist.map(asset=>{const safeAsset=escapeHtml(asset);return `<div class="watch-row loading" data-asset="${safeAsset}"><button class="watch-row-main" type="button" data-select-watch="${safeAsset}" aria-label="Open ${safeAsset} chart"><span>${iconMarkup(assetMeta(asset))}${safeAsset}</span><strong>—</strong><em>—</em></button><button class="watch-remove-button" type="button" data-remove-watch="${safeAsset}" aria-label="Remove ${safeAsset} from Watchlist" title="Remove from Watchlist">×</button></div>`}).join(''):'<div class="watchlist-empty">Watchlist is empty<button type="button" data-open-search>Find an asset</button></div>';
+    state.watchlist.forEach(asset=>{const market=marketForAsset(asset),snapshot=market&&state.marketSnapshots[market.id];if(snapshot)updateWatch(asset,snapshot)});selectWatch(state.selectedMarket.asset);renderPairMenu();
+  }
+  const updateWatch=(asset,snapshot)=>{const row=watchContainer.querySelector(`[data-asset="${asset}"]`);if(!row||!snapshot)return;row.classList.remove('loading');row.querySelector('strong').textContent=formatPrice(snapshot.lastPrice);const change=row.querySelector('em');change.textContent=formatPercent(snapshot.changePercent);applyDirection(change,snapshot.changePercent)};
+  const selectWatch=asset=>watchContainer.querySelectorAll('[data-asset]').forEach(row=>row.classList.toggle('active',row.dataset.asset===asset));
+
+  const pulseCards=[...document.querySelectorAll('[data-pulse-asset]')],volumeCard=document.querySelector('[data-pulse-volume]');
+  const updatePulse=(asset,snapshot)=>{const card=pulseCards.find(item=>item.dataset.pulseAsset===asset);if(!card||!snapshot)return;card.querySelector('strong').textContent=`$${formatPrice(snapshot.lastPrice)}`;const change=card.querySelector('.pulse-copy>span');change.textContent=formatPercent(snapshot.changePercent);applyDirection(change,snapshot.changePercent)};
+
+  const pairButton=document.getElementById('pair-selector'),pairMenu=document.getElementById('pair-menu'),exchangeButton=document.getElementById('exchange-selector'),exchangeMenu=document.getElementById('exchange-menu');
+  function renderPairMenu(){pairMenu.innerHTML=state.watchlist.map(asset=>`<button class="dropdown-item" type="button" data-asset="${escapeHtml(asset)}"><span>${escapeHtml(asset)}</span><small>${escapeHtml(assetMeta(asset).name)}</small></button>`).join('')||'<div class="dropdown-empty">Watchlist is empty</div>'}
+  const toggleMenu=(button,menu)=>{const open=menu.hidden;pairMenu.hidden=true;exchangeMenu.hidden=true;pairButton.setAttribute('aria-expanded','false');exchangeButton.setAttribute('aria-expanded','false');menu.hidden=!open;button.setAttribute('aria-expanded',String(open))};
+  pairButton.addEventListener('click',event=>{event.stopPropagation();toggleMenu(pairButton,pairMenu)});exchangeButton.addEventListener('click',event=>{event.stopPropagation();toggleMenu(exchangeButton,exchangeMenu)});
+
+  const details={price:document.getElementById('side-price'),change:document.getElementById('instrument-change'),low:document.getElementById('day-low'),high:document.getElementById('day-high'),volume:document.getElementById('detail-volume'),marker:document.getElementById('day-marker'),icon:document.getElementById('detail-icon')};
+  function renderMarket(){
+    const market=state.selectedMarket,snapshot=state.marketSnapshots[market.id],meta=assetMeta(market.asset);
+    document.querySelectorAll('[data-pair-label]').forEach(el=>el.textContent=marketLabel(market));document.querySelectorAll('[data-exchange-label]').forEach(el=>el.textContent=EXCHANGES[market.exchange].label);
+    const pairIcon=pairButton.querySelector('.coin-icon');pairIcon.className=`coin-icon ${meta.className} small`;pairIcon.textContent=meta.icon;
+    document.getElementById('current-price').textContent=formatPrice(snapshot?.lastPrice);const toolbarChange=document.getElementById('toolbar-change');toolbarChange.innerHTML=`${formatPercent(snapshot?.changePercent)} <small>24h</small>`;applyDirection(toolbarChange,snapshot?.changePercent);document.getElementById('toolbar-high').textContent=formatPrice(snapshot?.high);document.getElementById('toolbar-low').textContent=formatPrice(snapshot?.low);document.getElementById('toolbar-volume').textContent=snapshot?`$${formatCompact(snapshot.volume)}`:'—';
+    details.icon.className=`coin-icon ${meta.className} small`;details.icon.textContent=meta.icon;details.price.textContent=formatPrice(snapshot?.lastPrice);details.change.textContent=snapshot?`${snapshot.change>=0?'+':'−'}${formatPrice(Math.abs(snapshot.change))}   ${formatPercent(snapshot.changePercent)}`:'—';applyDirection(details.change,snapshot?.changePercent);details.low.textContent=formatPrice(snapshot?.low);details.high.textContent=formatPrice(snapshot?.high);details.volume.textContent=snapshot?`$${formatCompact(snapshot.volume)}`:'—';const span=snapshot?.high-snapshot?.low;details.marker.style.left=`${span>0?Math.max(0,Math.min(100,((snapshot.lastPrice-snapshot.low)/span)*100)):50}%`;document.querySelector('.instrument-panel h2').textContent=marketLabel(market);
+    selectWatch(market.asset);document.querySelectorAll('.timeframes button').forEach(button=>button.classList.toggle('active',button.dataset.interval===state.selectedTimeframe));document.getElementById('chart-title').textContent=`${meta.name} / TetherUS · ${state.selectedTimeframe} · BINANCE`;
+    exchangeMenu.innerHTML=marketsForAsset(market.asset).map(item=>`<button class="dropdown-item" type="button" data-market-id="${escapeHtml(item.id)}" ${item.enabled?'':'disabled'}><span>${escapeHtml(item.baseAsset)}/${escapeHtml(item.quoteAsset)} · ${escapeHtml(EXCHANGES[item.exchange].label)}</span><small>${item.enabled?'Active':'Coming soon'}</small></button>`).join('');
+    const favorite=document.getElementById('favorite-button'),saved=state.watchlist.includes(market.asset);favorite.classList.toggle('active',saved);favorite.textContent=saved?'★':'☆';favorite.setAttribute('aria-pressed',String(saved));favorite.setAttribute('aria-label',`${saved?'Remove':'Add'} ${market.asset} ${saved?'from':'to'} Watchlist`);
+  }
+
+  const statusElements=[document.getElementById('connection-status'),document.getElementById('market-status')];
+  function setConnection(status){state.connectionStatus=status;statusElements.forEach(el=>{el.dataset.status=status.toLowerCase();el.lastChild.textContent=` ${status}`});const detailStatus=document.getElementById('instrument-status');detailStatus.dataset.status=status.toLowerCase();detailStatus.lastChild.textContent=` ${status}`;document.getElementById('connection-message').textContent=status==='LIVE'?'Binance live market data':status==='OFFLINE'?'Live stream unavailable':'Connecting to Binance'}
+  const setOhlc=candle=>document.getElementById('ohlc-status').textContent=`O ${formatPrice(candle.open)}  H ${formatPrice(candle.high)}  L ${formatPrice(candle.low)}  C ${formatPrice(candle.close)}`;
+  function renderLiveQuote(market,snapshot){document.getElementById('current-price').textContent=formatPrice(snapshot.lastPrice);details.price.textContent=formatPrice(snapshot.lastPrice);const span=snapshot.high-snapshot.low;details.marker.style.left=`${span>0?Math.max(0,Math.min(100,((snapshot.lastPrice-snapshot.low)/span)*100)):50}%`;updateWatch(market.asset,snapshot);updatePulse(market.asset,snapshot)}
+  function liveCandle(market,candle){if(state.selectedMarket.id!==market.id)return;historyService.updateLive(market,state.selectedTimeframe,candle);chartApi.update(candle);setOhlc(candle);updateSnapshot(market.id,{...(state.marketSnapshots[market.id]||{}),lastPrice:candle.close});renderLiveQuote(market,state.marketSnapshots[market.id])}
+  function loadMarket(){
+    const market=state.selectedMarket,timeframe=state.selectedTimeframe;historyContext=null;historyLoading=false;setHistoryStatus('');state.loadingState.chart=true;state.errorState.chart=null;chartApi.loading('Loading market data…');document.getElementById('ohlc-status').textContent='Loading market data…';renderMarket();
+    selectMarketData(market,timeframe,{onStatus:setConnection,onCandles:(data,result)=>{if(state.selectedMarket.id!==market.id||state.selectedTimeframe!==timeframe)return;if(!data.length){chartApi.loading('No market data');return}historyContext={market,timeframe,token:generation,endReached:result.endReached,key:result.key};chartApi.setData(data,result.key,result.pages);chartApi.ready();setOhlc(data.at(-1));updateSnapshot(market.id,{...(state.marketSnapshots[market.id]||{}),lastPrice:data.at(-1).close});updateWatch(market.asset,state.marketSnapshots[market.id]);updatePulse(market.asset,state.marketSnapshots[market.id]);renderMarket();state.loadingState.chart=false;document.getElementById('retry-button').hidden=true},onCandle:candle=>liveCandle(market,candle),onError:error=>{const message=error.name==='TimeoutError'?'Market request timed out':'Market data unavailable';state.errorState.chart=message;chartApi.loading(message);document.getElementById('ohlc-status').textContent=message;document.getElementById('retry-button').hidden=false}})
+  }
+  function selectAsset(asset){const market=marketForAsset(asset);if(!market){chartApi.loading('Market unavailable');return}state.selectedMarket=market;renderMarket();refreshSnapshots();loadMarket()}
+  function selectMarketId(id){const market=[...MARKETS,...FUTURE_MARKETS].find(item=>item.id===id&&item.enabled);if(market){state.selectedMarket=market;loadMarket()}}
+  function toggleWatchlist(asset){const index=state.watchlist.indexOf(asset);if(index>=0)state.watchlist.splice(index,1);else if(assetIndex.has(asset))state.watchlist.push(asset);saveWatchlist();renderWatchlist();renderMarket();if(!searchResults.hidden)drawSearch();refreshSnapshots()}
+  watchContainer.addEventListener('click',event=>{if(event.target.closest('[data-open-search]')){openSearch();return}const remove=event.target.closest('[data-remove-watch]');if(remove){event.stopPropagation();toggleWatchlist(remove.dataset.removeWatch);return}const select=event.target.closest('[data-select-watch]');if(select)selectAsset(select.dataset.selectWatch)});pulseCards.forEach(card=>card.addEventListener('click',()=>selectAsset(card.dataset.pulseAsset)));
+  pairMenu.addEventListener('click',event=>{const option=event.target.closest('[data-asset]');if(option){pairMenu.hidden=true;selectAsset(option.dataset.asset)}});exchangeMenu.addEventListener('click',event=>{const option=event.target.closest('[data-market-id]:not(:disabled)');if(option)selectMarketId(option.dataset.marketId);exchangeMenu.hidden=true});
+  document.querySelectorAll('.timeframes button').forEach(button=>button.addEventListener('click',()=>{if(TIMEFRAMES.includes(button.dataset.interval)&&button.dataset.interval!==state.selectedTimeframe){state.selectedTimeframe=button.dataset.interval;loadMarket()}}));
+  document.getElementById('favorite-button').addEventListener('click',()=>toggleWatchlist(state.selectedMarket.asset));
+
+  const searchInput=document.getElementById('coin-search'),searchResults=document.getElementById('search-results'),searchShell=document.querySelector('.search-shell');let searchMatches=[],searchIndex=-1,searchTimer=null,searchMode='top';
+  const closeSearch=()=>{searchResults.hidden=true;searchShell.classList.remove('open');searchIndex=-1};
+  function openSearch(){searchShell.classList.add('open');searchInput.focus();drawSearch()}
+  function drawSearch(){
+    if(universeStatus==='loading'){searchResults.innerHTML='<div class="universe-state">Loading market universe…</div>';searchResults.hidden=false;return}
+    if(universeStatus==='error'&&!assetIndex.size){searchResults.innerHTML='<div class="universe-state">Market catalog unavailable<button class="catalog-retry-button" type="button" data-retry-universe>Retry</button></div>';searchResults.hidden=false;return}
+    searchMatches=searchUniverse(searchInput.value,searchMode);searchIndex=searchMatches.length?0:-1;
+    const tabs=`<div class="market-browser-tabs" role="tablist" aria-label="Market sorting">${[['top','Top'],['volume','Volume'],['gainers','Gainers'],['losers','Losers']].map(([mode,label])=>`<button type="button" role="tab" data-search-mode="${mode}" aria-selected="${searchMode===mode}" class="${searchMode===mode?'active':''}">${label}</button>`).join('')}</div>`;
+    const hint=!favoriteHintSeen()?'<div class="favorite-hint">☆ Add to Watchlist</div>':'';
+    const rows=searchMatches.length?searchMatches.map((asset,index)=>{const market=marketForAsset(asset),saved=state.watchlist.includes(asset),meta=assetMeta(asset),snapshot=catalogSnapshots.get(asset),change=snapshot?.changePercent,direction=Number.isFinite(change)?(change>=0?'positive':'negative'):'',safeAsset=escapeHtml(asset);return `<div class="search-asset ${index===searchIndex?'active':''}" data-result-index="${index}" data-volume="${snapshot?.volume??''}" data-change="${Number.isFinite(change)?change:''}"><button class="dropdown-item market-asset-button" type="button" data-select-asset="${safeAsset}">${iconMarkup(meta,'tiny')}<span class="search-identity"><strong>${safeAsset}</strong>${meta.name&&meta.name.toUpperCase()!==asset?`<small>${escapeHtml(meta.name)}</small>`:''}<small class="search-market">${escapeHtml(market.baseAsset)}/${escapeHtml(market.quoteAsset)} · Binance</small></span><span class="market-result-data"><strong>${snapshot?`$${formatPrice(snapshot.lastPrice)}`:'—'}</strong><em class="${direction}">${formatPercent(change)}</em></span></button><button class="search-watch-button ${saved?'active':''}" type="button" data-toggle-watch="${safeAsset}" aria-label="${saved?'Remove from':'Add to'} Watchlist" title="${saved?'Remove from':'Add to'} Watchlist">${saved?'★':'☆'}</button></div>`}).join(''):'<div class="dropdown-empty">No assets found</div>';
+    searchResults.innerHTML=`${tabs}${hint}<div class="market-browser-list">${rows}</div>`;searchResults.hidden=false;
+  }
+  function scheduleSearch(){clearTimeout(searchTimer);searchTimer=setTimeout(drawSearch,100)}
+  function setSearchIndex(index){searchIndex=index;searchResults.querySelectorAll('.search-asset').forEach((item,itemIndex)=>item.classList.toggle('active',itemIndex===searchIndex));searchResults.querySelector(`[data-result-index="${searchIndex}"]`)?.scrollIntoView({block:'nearest'})}
+  searchInput.addEventListener('input',scheduleSearch);searchInput.addEventListener('focus',drawSearch);searchInput.addEventListener('keydown',event=>{if(event.key==='Escape'){closeSearch();searchInput.blur();return}if(event.key==='ArrowDown'&&searchMatches.length){event.preventDefault();setSearchIndex((searchIndex+1)%searchMatches.length)}if(event.key==='ArrowUp'&&searchMatches.length){event.preventDefault();setSearchIndex((searchIndex-1+searchMatches.length)%searchMatches.length)}if(event.key==='Enter'&&searchMatches[searchIndex]){event.preventDefault();selectAsset(searchMatches[searchIndex]);searchInput.value='';closeSearch()}});
+  searchResults.addEventListener('click',event=>{const retry=event.target.closest('[data-retry-universe]');if(retry){event.stopPropagation();loadUniverse();return}const mode=event.target.closest('[data-search-mode]');if(mode){event.stopPropagation();searchMode=mode.dataset.searchMode;drawSearch();return}const toggle=event.target.closest('[data-toggle-watch]');if(toggle){event.stopPropagation();dismissFavoriteHint();toggleWatchlist(toggle.dataset.toggleWatch);drawSearch();return}const option=event.target.closest('[data-select-asset]');if(option){selectAsset(option.dataset.selectAsset);searchInput.value='';closeSearch()}});
+  document.getElementById('mobile-search-button').addEventListener('click',event=>{event.stopPropagation();openSearch()});document.getElementById('add-watchlist-button').addEventListener('click',event=>{event.stopPropagation();openSearch()});document.addEventListener('keydown',event=>{if(event.key==='/'&&document.activeElement!==searchInput){event.preventDefault();openSearch()}});document.addEventListener('click',event=>{if(!event.target.closest('.search-shell')&&!event.target.closest('.selector-shell')){closeSearch();pairMenu.hidden=true;exchangeMenu.hidden=true}});
+
+  const alertStorage=new ZychAlerts.AlertStorage();let alertTab='active';
+  const alertDialogBackdrop=document.getElementById('alert-dialog-backdrop'),alertForm=document.getElementById('alert-form'),alertFormError=document.getElementById('alert-form-error'),alertsPanel=document.getElementById('alerts-panel'),alertsPanelBackdrop=document.getElementById('alerts-panel-backdrop'),alertsList=document.getElementById('alerts-list'),alertCounter=document.getElementById('alerts-counter'),alertMonitorStatus=document.getElementById('alert-monitor-status'),toastRegion=document.getElementById('toast-region'),soundSelect=document.getElementById('alert-sound-select'),soundVolume=document.getElementById('alert-sound-volume'),soundToggle=document.getElementById('alert-sound-toggle'),soundTest=document.getElementById('alert-sound-test'),soundState=document.getElementById('alert-sound-state');
+  const alertTypeInputs=[...alertForm.elements['alert-type']],alertFieldsets={price:document.getElementById('alert-price-fields'),movement:document.getElementById('alert-movement-fields'),volume:document.getElementById('alert-volume-fields')};
+  const formatAlertTime=value=>new Date(value).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  function alertDescription(alert){const c=alert.condition;if(c.type==='price')return `Price ${c.operator} $${formatPrice(c.value)}`;if(c.type==='movement')return `${c.direction==='up'?'+':'−'}${c.percent}% within ${c.window}`;return `Volume ≥ ${c.multiplier}x average · ${c.timeframe}`}
+  function eventDescription(event){if(event.alertType==='price')return `Price crossed ${event.condition.operator} $${formatPrice(event.threshold)} · $${formatPrice(event.currentPrice)}`;if(event.alertType==='movement')return `${event.percentMove>=0?'+':''}${Number(event.percentMove).toFixed(2)}% in ${event.window}`;return `Volume ${Number(event.multiplier).toFixed(2)}x average`}
+  function updateAlertCounter(){const count=alertEngine.activeCount();alertCounter.textContent=String(count);alertCounter.hidden=count===0}
+  function renderAlertsPanel(){
+    document.querySelectorAll('[data-alert-tab]').forEach(button=>button.classList.toggle('active',button.dataset.alertTab===alertTab));
+    if(alertTab==='triggered'){const events=alertEngine.events();alertsList.innerHTML=events.length?events.map(event=>`<article class="alert-row" data-alert-context="${escapeHtml(event.marketId)}" data-alert-timeframe="${escapeHtml(event.timeframe||'')}"><div class="alert-row-top"><div><strong>${escapeHtml(event.asset)}</strong><p>${escapeHtml(eventDescription(event))}</p><small>${escapeHtml(event.exchange)} · ${formatAlertTime(event.triggeredAt)}</small></div><div class="alert-row-actions"><button class="delete-alert" type="button" data-alert-action="dismiss-event" data-event-id="${escapeHtml(event.id)}">Delete</button></div></div></article>`).join(''):'<div class="alerts-empty">No triggered alerts</div>';return}
+    const status=alertTab==='paused'?'paused':'active',alerts=alertEngine.list().filter(alert=>alert.status===status);alertsList.innerHTML=alerts.length?alerts.map(alert=>`<article class="alert-row" data-alert-context="${escapeHtml(alert.marketId)}" data-alert-timeframe="${escapeHtml(alert.timeframe||'')}"><div class="alert-row-top"><div><strong>${escapeHtml(alert.asset)}</strong><p>${escapeHtml(alertDescription(alert))}</p><small>${escapeHtml(alert.exchange)} · Created ${formatAlertTime(alert.createdAt)} · ${escapeHtml(alert.mode)}</small></div><div class="alert-row-actions"><button type="button" data-alert-action="${status==='active'?'pause':'resume'}" data-alert-id="${escapeHtml(alert.id)}">${status==='active'?'Pause':'Resume'}</button><button class="delete-alert" type="button" data-alert-action="delete" data-alert-id="${escapeHtml(alert.id)}">Delete</button></div></div></article>`).join(''):`<div class="alerts-empty">No ${status} alerts</div>`
+  }
+  function openAlertContext(marketId,timeframe){const market=MARKETS.find(item=>item.id===marketId&&item.enabled);if(!market)return;state.selectedMarket=market;if(timeframe){const interval=timeframe==='24h'?'1d':timeframe;if(TIMEFRAMES.includes(interval))state.selectedTimeframe=interval}renderMarket();refreshSnapshots();loadMarket();closeAlertsPanel()}
+  function renderSoundState(current){soundSelect.value=current.soundId;soundVolume.value=String(current.volume);soundToggle.textContent=current.enabled?'ON':'OFF';soundToggle.classList.toggle('active',current.enabled);soundToggle.setAttribute('aria-pressed',String(current.enabled));soundToggle.setAttribute('aria-label',`Turn alert sound ${current.enabled?'off':'on'}`);soundToggle.dataset.playCount=String(current.playCount);soundState.textContent=current.enabled&&!current.unlocked?'Tap to enable audio':''}
+  const alertSound=new ZychNotifications.AlertSoundManager({onState:renderSoundState});renderSoundState(alertSound.state());
+  const notificationCenter=new ZychNotifications.NotificationCenter({region:toastRegion,sound:alertSound,describe:eventDescription,formatTime:formatAlertTime,onOpen:event=>openAlertContext(event.marketId,event.timeframe)});
+  const alertEngine=new ZychAlerts.AlertEngine({storage:alertStorage,evaluate:ZychAlerts.evaluateAlert,onChange:()=>{updateAlertCounter();renderAlertsPanel()},onTrigger:event=>notificationCenter.notify(event),onStatus:status=>{alertMonitorStatus.dataset.status=status.toLowerCase();alertMonitorStatus.lastChild.textContent=` ${status==='IDLE'?'Idle':status==='LIVE'?'Monitoring live':status[0]+status.slice(1).toLowerCase()}`}});
+  function suggestedPrice(){const price=Number(state.marketSnapshots[state.selectedMarket.id]?.lastPrice);if(!Number.isFinite(price)||price<=0)return'';const raw=price*1.01,power=10**Math.max(-8,Math.floor(Math.log10(raw))-2);return String(Math.ceil(raw/power)*power)}
+  function openAlertDialog(){alertSound.unlock();const market=state.selectedMarket;document.getElementById('alert-market-label').textContent=`${marketLabel(market)} · ${EXCHANGES[market.exchange].label}`;alertForm.reset();alertForm.elements['price-value'].value=suggestedPrice();alertForm.elements['movement-percent'].value='3';alertForm.elements['volume-multiplier'].value='2';alertFormError.textContent='';updateAlertType();alertDialogBackdrop.hidden=false;setTimeout(()=>alertForm.querySelector('input:not([type="radio"]),select')?.focus(),0)}
+  function closeAlertDialog(){alertDialogBackdrop.hidden=true}
+  function updateAlertType(){const type=alertForm.elements['alert-type'].value;Object.entries(alertFieldsets).forEach(([name,element])=>element.hidden=name!==type)}
+  function openAlertsPanel(){alertSound.unlock();alertsPanel.classList.add('open');alertsPanel.setAttribute('aria-hidden','false');alertsPanelBackdrop.hidden=false;renderAlertsPanel()}
+  function closeAlertsPanel(){alertsPanel.classList.remove('open');alertsPanel.setAttribute('aria-hidden','true');alertsPanelBackdrop.hidden=true}
+  alertTypeInputs.forEach(input=>input.addEventListener('change',updateAlertType));
+  alertForm.addEventListener('submit',event=>{event.preventDefault();const type=alertForm.elements['alert-type'].value,mode=alertForm.elements['alert-mode'].value,market=state.selectedMarket;let condition,error='';if(type==='price'){const value=Number(alertForm.elements['price-value'].value);if(!(value>0))error='Enter a price greater than 0.';condition={type:'price',operator:alertForm.elements['price-operator'].value,value}}else if(type==='movement'){const percent=Number(alertForm.elements['movement-percent'].value);if(!(percent>0))error='Enter a movement greater than 0%.';condition={type:'movement',direction:alertForm.elements['movement-direction'].value,percent,window:alertForm.elements['movement-window'].value}}else{const multiplier=Number(alertForm.elements['volume-multiplier'].value);if(!(multiplier>1))error='Choose a multiplier greater than 1x.';condition={type:'volume',multiplier,timeframe:alertForm.elements['volume-timeframe'].value,averageWindow:ZychAlerts.VOLUME_AVERAGE_WINDOW}}if(error){alertFormError.textContent=error;return}const result=alertEngine.create({marketId:market.id,asset:market.asset,symbol:market.symbol,exchange:market.exchange,quoteAsset:market.quoteAsset,condition,mode});if(result.error){alertFormError.textContent=result.error;return}closeAlertDialog();openAlertsPanel()});
+  document.getElementById('create-alert-button').addEventListener('click',openAlertDialog);document.getElementById('alerts-button').addEventListener('click',openAlertsPanel);document.getElementById('mobile-alerts-button').addEventListener('click',openAlertsPanel);document.querySelector('[data-close-alert-dialog]').addEventListener('click',closeAlertDialog);alertDialogBackdrop.addEventListener('click',event=>{if(event.target===alertDialogBackdrop)closeAlertDialog()});document.querySelector('[data-close-alerts-panel]').addEventListener('click',closeAlertsPanel);alertsPanelBackdrop.addEventListener('click',closeAlertsPanel);
+  soundSelect.addEventListener('change',()=>alertSound.setSound(soundSelect.value));soundVolume.addEventListener('change',()=>alertSound.setVolume(soundVolume.value));soundToggle.addEventListener('click',()=>alertSound.setEnabled(!alertSound.enabled));soundTest.addEventListener('click',()=>alertSound.preview(soundSelect.value));
+  document.querySelector('.alerts-tabs').addEventListener('click',event=>{const button=event.target.closest('[data-alert-tab]');if(button){alertTab=button.dataset.alertTab;renderAlertsPanel()}});alertsList.addEventListener('click',event=>{const action=event.target.closest('[data-alert-action]');if(action){event.stopPropagation();if(action.dataset.alertAction==='pause')alertEngine.pause(action.dataset.alertId);if(action.dataset.alertAction==='resume')alertEngine.resume(action.dataset.alertId);if(action.dataset.alertAction==='delete')alertEngine.remove(action.dataset.alertId);if(action.dataset.alertAction==='dismiss-event')alertEngine.removeEvent(action.dataset.eventId);return}const row=event.target.closest('[data-alert-context]');if(row)openAlertContext(row.dataset.alertContext,row.dataset.alertTimeframe)});
+  updateAlertCounter();renderAlertsPanel();alertEngine.start();
+
+  let snapshotController=null,universeController=null;
+  async function refreshSnapshots(){
+    snapshotController?.abort();snapshotController=new AbortController();
+    const requestedAssets=[...new Set([...state.watchlist,state.selectedMarket.asset,'BTC','ETH','SOL'])];
+    const requestedMarkets=requestedAssets.map(marketForAsset).filter(Boolean);
+    try{const data=await binance.snapshots(requestedMarkets.map(market=>market.symbol),snapshotController.signal);requestedMarkets.forEach(market=>{const snapshot=data[market.symbol];if(!snapshot)return;state.marketSnapshots[market.id]=snapshot;if(state.watchlist.includes(market.asset))updateWatch(market.asset,snapshot);updatePulse(market.asset,snapshot)});volumeCard.querySelector('strong').textContent=`$${formatCompact(Object.values(data).reduce((sum,row)=>sum+(row.volume||0),0))}`;renderMarket()}catch(error){if(error.name!=='AbortError')document.getElementById('retry-button').hidden=false}
+  }
+  async function loadUniverse(){
+    universeController?.abort();universeController=new AbortController();universeStatus='loading';state.loadingState.universe=true;
+    try{const [info,tickers]=await Promise.all([binance.exchangeInfo(universeController.signal),binance.allSnapshots(universeController.signal).catch(()=>[])]);normalizeUniverse(info);catalogLiquidity=new Map();catalogSnapshots=new Map();const usdtBySymbol=new Map(MARKETS.filter(market=>market.quoteAsset==='USDT').map(market=>[market.symbol,market]));tickers.forEach(row=>{const market=usdtBySymbol.get(row.symbol);if(!market)return;const snapshot={lastPrice:Number(row.lastPrice),changePercent:Number(row.priceChangePercent),volume:Number(row.quoteVolume)||0};catalogLiquidity.set(market.asset,snapshot.volume);catalogSnapshots.set(market.asset,snapshot)});document.documentElement.dataset.usdtAssets=String(usdtBySymbol.size);universeStatus='ready';state.loadingState.universe=false;state.errorState.universe=null;saveWatchlist();renderWatchlist();renderMarket();if(!searchResults.hidden)drawSearch();await refreshSnapshots()}
+    catch(error){if(error.name==='AbortError')return;universeStatus='error';state.loadingState.universe=false;state.errorState.universe='Market universe unavailable';if(!searchResults.hidden)drawSearch()}
+  }
+  document.getElementById('retry-button').addEventListener('click',()=>{refreshSnapshots();loadMarket();if(universeStatus==='error')loadUniverse()});const snapshotTimer=setInterval(refreshSnapshots,60000);window.addEventListener('beforeunload',()=>{clearInterval(snapshotTimer);clearTimeout(searchTimer);clearTimeout(historyStatusTimer);snapshotController?.abort();universeController?.abort();stopMarket();alertEngine.stop()});
+  renderWatchlist();renderMarket();refreshSnapshots();loadMarket();loadUniverse();
+})();

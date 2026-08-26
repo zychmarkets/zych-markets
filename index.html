@@ -2,217 +2,125 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="ZYCH Markets — crypto market analytics, multi-exchange monitoring and intelligent alerts.">
-  <title>ZYCH Markets — Crypto Market Analytics & Alerts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ZYCH Markets — a fast, lightweight crypto market terminal.">
+  <title>ZYCH Markets — Crypto Terminal</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-  <a class="brand" href="#">
-    <span class="mark">Z</span>
-    <span>ZYCH</span>
-  </a>
-
-  <nav class="main-nav">
-    <a href="#">Markets</a>
-    <a href="#features">Scanner</a>
-    <a href="#signals">Signals</a>
-    <a href="#news">News</a>
-  </nav>
-
-  <div class="top-actions">
-    <div class="coin-search">⌕&nbsp;&nbsp; Search coin...</div>
-    <button class="icon-btn">♧</button>
-    <button class="icon-btn">⚙</button>
-    <button class="login-btn">Login</button>
-  </div>
-</header>
-
-<div class="market-pulse">
-
-  <div class="pulse-card">
-    <span class="coin-icon btc">₿</span>
-    <div>
-      <b>BTC</b>
-      <strong>$79,420</strong>
-    </div>
-    <span class="up">+1.82%</span>
-  </div>
-
-  <div class="pulse-card">
-    <span class="coin-icon eth">◆</span>
-    <div>
-      <b>ETH</b>
-      <strong>$3,241</strong>
-    </div>
-    <span class="up">+2.04%</span>
-  </div>
-
-  <div class="pulse-card">
-    <span class="coin-icon sol">S</span>
-    <div>
-      <b>SOL</b>
-      <strong>$146.28</strong>
-    </div>
-    <span class="up">+0.91%</span>
-  </div>
-
-  <div class="pulse-card">
-    <div>
-      <b>TOTAL3</b>
-      <strong>$824.6B</strong>
-    </div>
-    <span class="up">+1.43%</span>
-  </div>
-
-  <div class="pulse-card">
-    <div>
-      <b>BTC.D</b>
-      <strong>58.25%</strong>
-    </div>
-    <span class="down">-0.27%</span>
-  </div>
-
-  <div class="pulse-card fear-card">
-    <div>
-      <b>Fear & Greed</b>
-      <strong>27</strong>
-    </div>
-    <span class="fear">FEAR</span>
-  </div>
-
-  <div class="pulse-card">
-    <div>
-      <b>Altseason</b>
-      <strong>41</strong>
-    </div>
-    <span class="neutral">NEUTRAL</span>
-  </div>
-
-  <div class="pulse-card">
-    <div>
-      <b>24h Volume</b>
-      <strong>$156.8B</strong>
-    </div>
-    <span class="up">+6.12%</span>
-  </div>
-
-</div>
-
-  <main><section class="section chart-top">
-  <div class="eyebrow">LIVE CHART</div>
-  <h2>BTC / USDT</h2>
-
-  <div id="timeframes" class="timeframes">
-    <button data-interval="1m">1m</button>
-    <button data-interval="5m">5m</button>
-    <button data-interval="15m">15m</button>
-    <button data-interval="30m">30m</button>
-    <button data-interval="1h">1h</button>
-    <button data-interval="4h">4h</button>
-    <button data-interval="1d">1D</button>
-    <button data-interval="1w">1W</button>
-  </div>
-
-  <div id="chart" style="width:100%; height:500px;"></div>
-</section>
-    <section class="hero">
-      <div class="eyebrow">CRYPTO MARKET INTELLIGENCE</div>
-      <h1>Markets move fast.<br><span>ZYCH keeps you ahead.</span></h1>
-      <p class="lead">A lightweight crypto market analytics & alerts platform built for fast multi-exchange monitoring, clear charts and actionable signals.</p>
-      <div class="actions"><a class="primary" href="#features">Explore the platform</a><a class="secondary" href="mailto:contact@zychmarkets.com">Contact us</a></div>
-
-      <div class="terminal">
-        <div class="terminal-head"><span>Market overview</span><span class="live">● LIVE</span></div>
-        <div class="coins">
-          <div><b>BTC / USDT</b><span>$64,284.20</span><em>+2.84%</em></div>
-          <div><b>ETH / USDT</b><span>$3,421.70</span><em>+1.62%</em></div>
-          <div><b>SOL / USDT</b><span>$146.38</span><em>+4.17%</em></div>
-          <div><b>LINK / USDT</b><span>$14.92</span><em>+2.31%</em></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="ZYCH Markets home"><span class="brand-mark">Z</span><span class="brand-name">ZYCH</span></a>
+      <nav class="main-nav" aria-label="Primary navigation">
+        <a class="active" href="#terminal">Markets</a><a href="#watchlist">Scanner</a><a href="#">Signals</a><a href="#">News</a>
+      </nav>
+      <div class="header-actions">
+        <div class="search-shell">
+          <label class="coin-search"><span aria-hidden="true">⌕</span><input id="coin-search" type="search" placeholder="Search coin..." aria-label="Search coin" autocomplete="off" aria-expanded="false" aria-controls="search-results"><kbd>/</kbd></label>
+          <div id="search-results" class="dropdown-menu search-results" role="listbox" hidden></div>
         </div>
-        <div class="chart" aria-label="Decorative market chart">
-          <svg viewBox="0 0 900 210" preserveAspectRatio="none">
-            <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#68f5c0" stop-opacity=".32"/><stop offset="100%" stop-color="#68f5c0" stop-opacity="0"/></linearGradient></defs>
-            <path class="area" d="M0 180 L65 160 L120 172 L175 132 L230 145 L285 105 L340 120 L400 75 L455 92 L515 58 L575 72 L630 45 L690 62 L745 30 L810 48 L900 16 L900 210 L0 210 Z"/>
-            <path class="line" d="M0 180 L65 160 L120 172 L175 132 L230 145 L285 105 L340 120 L400 75 L455 92 L515 58 L575 72 L630 45 L690 62 L745 30 L810 48 L900 16"/>
-          </svg>
+        <button id="mobile-search-button" class="square-button mobile-search-button" type="button" aria-label="Search coin">⌕</button>
+        <button id="alerts-button" class="square-button" type="button" aria-label="Alerts"><span aria-hidden="true">♢</span><span id="alerts-counter" class="notification-dot" hidden>0</span></button>
+        <button class="square-button settings-button" type="button" aria-label="Settings">⚙</button>
+        <button class="login-button" type="button">Login</button>
+      </div>
+    </header>
+
+    <section class="market-pulse" aria-label="Market Pulse">
+      <article class="pulse-card" data-pulse-asset="BTC"><span class="coin-icon btc">₿</span><div class="pulse-copy"><b>BTC</b><strong>—</strong><span>—</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 25 L9 23 L15 24 L23 18 L31 20 L38 13 L45 16 L52 9 L59 11 L69 2"/></svg></article>
+      <article class="pulse-card" data-pulse-asset="ETH"><span class="coin-icon eth">◆</span><div class="pulse-copy"><b>ETH</b><strong>—</strong><span>—</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 24 L8 22 L15 23 L22 18 L29 20 L37 13 L44 15 L52 8 L59 10 L69 2"/></svg></article>
+      <article class="pulse-card" data-pulse-asset="SOL"><span class="coin-icon sol">S</span><div class="pulse-copy"><b>SOL</b><strong>—</strong><span>—</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 22 L10 24 L18 17 L26 19 L34 13 L42 16 L50 9 L58 12 L69 3"/></svg></article>
+      <article class="pulse-card demo-card" title="Demo data — external market-wide source not connected"><div class="pulse-copy"><b>TOTAL3 <small>DEMO</small></b><strong>$824.6B</strong><span class="positive">+1.43%</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 25 L12 24 L22 19 L31 21 L40 14 L49 16 L58 8 L69 4"/></svg></article>
+      <article class="pulse-card demo-card" title="Demo data — external dominance source not connected"><div class="pulse-copy"><b>BTC.D <small>DEMO</small></b><strong>58.25%</strong><span class="negative">−0.27%</span></div><svg class="sparkline negative-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 8 L9 7 L17 11 L25 9 L33 15 L42 13 L51 21 L60 18 L69 25"/></svg></article>
+      <article class="pulse-card status-card demo-card" title="Demo data — sentiment source not connected"><div class="pulse-copy"><b>Fear &amp; Greed <small>DEMO</small></b><strong>27</strong></div><span class="negative status-label">FEAR</span></article>
+      <article class="pulse-card status-card demo-card" title="Demo data — altseason source not connected"><div class="pulse-copy"><b>Altseason <small>DEMO</small></b><strong>41</strong></div><span class="neutral status-label">NEUTRAL</span></article>
+      <article class="pulse-card" data-pulse-volume><div class="pulse-copy"><b>Watchlist volume</b><strong>—</strong><span>24h</span></div></article>
+    </section>
+
+    <main id="terminal" class="terminal-layout">
+      <section class="chart-workspace" aria-label="Market chart">
+        <div class="instrument-toolbar">
+          <div class="instrument-controls">
+            <div class="selector-shell"><button id="pair-selector" class="selector-button pair-selector" type="button" aria-expanded="false"><span class="coin-icon btc small">₿</span><span data-pair-label>BTC / USDT</span><span class="chevron">⌄</span></button><div id="pair-menu" class="dropdown-menu selector-menu" hidden></div></div>
+            <div class="selector-shell"><button id="exchange-selector" class="selector-button" type="button" aria-expanded="false"><span class="exchange-mark">◆</span><span data-exchange-label>Binance</span><span class="chevron">⌄</span></button><div id="exchange-menu" class="dropdown-menu selector-menu" hidden></div></div>
+            <button id="favorite-button" class="favorite-button" type="button" aria-label="Add selected asset to Watchlist" aria-pressed="true">★</button>
+          </div>
+          <div class="instrument-quote">
+            <div class="quote-primary"><span class="quote-label" data-pair-label>BTC / USDT</span><strong id="current-price">—</strong></div>
+            <span id="toolbar-change" class="quote-change">— <small>24h</small></span>
+            <dl class="toolbar-stats" aria-label="24 hour market statistics">
+              <div><dt>High</dt><dd id="toolbar-high">—</dd></div>
+              <div><dt>Low</dt><dd id="toolbar-low">—</dd></div>
+              <div><dt>Volume</dt><dd id="toolbar-volume">—</dd></div>
+            </dl>
+          </div>
+          <div class="toolbar-actions"><button class="utility-button optional-action" type="button">Indicators</button><button id="create-alert-button" class="alert-button" type="button"><span aria-hidden="true">♢</span> + Alert</button><button class="icon-action" type="button" aria-label="Fullscreen">⛶</button></div>
         </div>
-      </div>
+        <div class="chart-subbar">
+          <div id="timeframes" class="timeframes" aria-label="Chart timeframe">
+            <button type="button" data-interval="1m">1m</button><button type="button" data-interval="5m">5m</button><button type="button" data-interval="15m">15m</button><button type="button" data-interval="30m">30m</button><button class="active" type="button" data-interval="1h">1h</button><button type="button" data-interval="4h">4h</button><button type="button" data-interval="1d">1D</button><button type="button" data-interval="1w">1W</button>
+          </div>
+          <span id="market-status" class="market-status" data-status="connecting"><i></i> CONNECTING</span>
+        </div>
+        <div class="chart-meta"><div><strong id="chart-title">Bitcoin / TetherUS · 1h · BINANCE</strong><span id="ohlc-status">Loading market data…</span></div></div>
+        <div class="chart-stage"><div id="chart" class="chart-container" aria-label="BTC USDT candlestick chart"></div><div id="chart-state" class="chart-state">Loading market data…</div><div id="chart-history-state" class="chart-history-state" role="status" hidden></div></div>
+        <div class="connection-bar"><span id="connection-status" data-status="connecting"><i></i> CONNECTING</span><span id="connection-message">Binance market data</span><button id="retry-button" class="retry-button" type="button" hidden>Retry</button><span class="connection-time">UTC+3</span></div>
+      </section>
+
+      <aside id="watchlist" class="market-sidebar">
+        <section class="watchlist-panel">
+          <header class="panel-header"><h2>Watchlist</h2><div><button id="add-watchlist-button" type="button" aria-label="Find asset to add">＋</button><button type="button" aria-label="Watchlist menu">•••</button></div></header>
+          <div class="watchlist-tabs" role="tablist" aria-label="Watchlist filters"><button class="active" type="button">ALL</button><button type="button">USDT</button><button type="button">BTC</button><button type="button">ETH</button><button type="button">FAV</button></div>
+          <div class="watchlist-head"><span>Asset</span><span>Last</span><span>Chg%</span></div>
+          <div id="watchlist-rows" class="watchlist-rows" aria-live="polite"></div>
+        </section>
+        <section class="instrument-panel">
+          <header><div><span id="detail-icon" class="coin-icon btc small">₿</span><h2 data-pair-label>BTC / USDT</h2></div><span data-exchange-label>Binance</span></header>
+          <div class="instrument-price"><strong id="side-price">—</strong><span>USDT</span></div><div id="instrument-change" class="instrument-change">—</div><p id="instrument-status" class="open-label"><i></i> CONNECTING</p>
+          <div class="range"><div><span id="day-low">—</span><small>DAY'S RANGE</small><span id="day-high">—</span></div><div class="range-track"><i id="day-marker" style="left:50%"></i></div></div>
+          <div class="key-stats"><h3>Key stats</h3><dl><div><dt>24h Volume</dt><dd id="detail-volume">—</dd></div><div><dt>Market Cap</dt><dd>—</dd></div><div><dt>FDV</dt><dd>—</dd></div></dl></div>
+        </section>
+      </aside>
+    </main>
+
+    <nav class="mobile-nav" aria-label="Mobile navigation"><a class="active" href="#terminal"><span>⌁</span>Markets</a><a href="#watchlist"><span>☆</span>Watchlist</a><button id="mobile-alerts-button" type="button"><span>♢</span>Alerts</button><button type="button"><span>•••</span>More</button></nav>
+  </div>
+  <div id="alert-dialog-backdrop" class="alert-backdrop" hidden>
+    <section id="alert-dialog" class="alert-dialog" role="dialog" aria-modal="true" aria-labelledby="alert-dialog-title">
+      <header><div><h2 id="alert-dialog-title">Create Alert</h2><p id="alert-market-label">BTC / USDT · Binance</p></div><button type="button" data-close-alert-dialog aria-label="Close">×</button></header>
+      <form id="alert-form" novalidate>
+        <fieldset class="alert-segment"><legend>Type</legend><label><input type="radio" name="alert-type" value="price" checked><span>Price</span></label><label><input type="radio" name="alert-type" value="movement"><span>Movement</span></label><label><input type="radio" name="alert-type" value="volume"><span>Volume Spike</span></label></fieldset>
+        <div id="alert-price-fields" class="alert-fields"><label>Condition<select name="price-operator"><option value="above">Price above</option><option value="below">Price below</option></select></label><label>Value<input name="price-value" type="number" min="0" step="any" inputmode="decimal"></label></div>
+        <div id="alert-movement-fields" class="alert-fields" hidden><label>Direction<select name="movement-direction"><option value="up">Moves up</option><option value="down">Moves down</option></select></label><label>Percent<input name="movement-percent" type="number" min="0" step="0.1" value="3" inputmode="decimal"></label><label>Window<select name="movement-window"><option>5m</option><option>15m</option><option>30m</option><option selected>1h</option><option>4h</option><option>24h</option></select></label></div>
+        <div id="alert-volume-fields" class="alert-fields" hidden><label>Multiplier<select name="volume-multiplier"><option value="1.5">1.5x</option><option value="2" selected>2x</option><option value="3">3x</option><option value="5">5x</option></select></label><label>Timeframe<select name="volume-timeframe"><option>5m</option><option selected>15m</option><option>1h</option><option>4h</option></select></label></div>
+        <fieldset class="alert-segment alert-mode"><legend>Mode</legend><label><input type="radio" name="alert-mode" value="once" checked><span>Once</span></label><label><input type="radio" name="alert-mode" value="recurring"><span>Recurring</span></label></fieldset>
+        <p id="alert-form-error" class="alert-form-error" role="alert"></p><button class="alert-submit" type="submit">Create Alert</button>
+      </form>
     </section>
-
-    <section id="features" class="section">
-      <div class="eyebrow">BUILT FOR CLARITY</div><h2>Everything important. Nothing in the way.</h2>
-      <div class="grid">
-        <article><span>01</span><h3>Multi-exchange markets</h3><p>Follow the assets that matter across multiple crypto exchanges from one clean interface.</p></article>
-        <article><span>02</span><h3>Fast market charts</h3><p>Open a market and get directly to price action without a crowded, desktop-first experience.</p></article>
-        <article><span>03</span><h3>Smart alerts</h3><p>Price and indicator alerts designed to surface important market movements at the right moment.</p></article>
-        <article><span>04</span><h3>Focused watchlists</h3><p>Build your own market view and monitor selected assets quickly from mobile or desktop.</p></article>
-      </div>
-    </section>
-
-    <section id="vision" class="section vision">
-      <div><div class="eyebrow">THE PLATFORM</div><h2>One view of the crypto market.</h2></div>
-      <p>ZYCH is being developed as a modern market-monitoring platform: fast access to selected cryptocurrencies, multi-exchange data, charts and alerts — without unnecessary complexity.</p>
-    </section>
-
-   
-    
-    <section id="contact" class="contact">
-      <div class="eyebrow">ZYCH MARKETS</div><h2>Follow the market.<br>Not the noise.</h2>
-      <p>Product and partnership enquiries</p>
-      <a href="mailto:contact@zychmarkets.com">contact@zychmarkets.com →</a>
-    </section>
-  </main>
-
-  <footer><span>© 2026 ZYCH Markets</span><span>Crypto Market Analytics & Alerts Platform</span></footer>
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-<script>
-  const container = document.getElementById('chart');
-
-  const chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth,
-    height: 500,
-    layout: {
-      background: { color: '#0b1115' },
-      textColor: '#d7dee5',
-      attributionLogo: true
-    },
-    grid: {
-      vertLines: { color: '#1d2a31' },
-      horzLines: { color: '#1d2a31' }
-    }
-  });
-
-  const candles = chart.addSeries(LightweightCharts.CandlestickSeries);
-function loadCandles(interval) {
-  fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=200`)
-    .then(response => response.json())
-    .then(data => {
-      candles.setData(data.map(k => ({
-        time: Math.floor(k[0] / 1000),
-        open: Number(k[1]),
-        high: Number(k[2]),
-        low: Number(k[3]),
-        close: Number(k[4])
-      })));
-
-      chart.timeScale().fitContent();
-    });
-}
-
-loadCandles('1h');
-
-document.querySelectorAll('#timeframes button').forEach(button => {
-  button.addEventListener('click', () => {
-    loadCandles(button.dataset.interval);
-  });
-});
- 
-
-  window.addEventListener('resize', () => {
-    chart.applyOptions({ width: container.clientWidth });
-  });
-</script>
+  </div>
+  <div id="alerts-panel-backdrop" class="alerts-panel-backdrop" hidden></div>
+  <aside id="alerts-panel" class="alerts-panel" aria-label="Alerts panel" aria-hidden="true">
+    <header><div><h2>Alerts</h2><span id="alert-monitor-status" data-status="offline"><i></i> Offline</span></div><button type="button" data-close-alerts-panel aria-label="Close">×</button></header>
+    <div class="alert-sound-controls">
+      <label for="alert-sound-select">Sound</label>
+      <select id="alert-sound-select" aria-label="Alert sound"><option value="zych-pulse">ZYCH Pulse</option><option value="soft-bell">Soft Bell</option><option value="terminal">Terminal</option><option value="urgent">Urgent</option></select>
+      <label class="sound-volume-label" for="alert-sound-volume">Volume</label>
+      <select id="alert-sound-volume" aria-label="Alert sound volume"><option value="0.35">Low</option><option value="0.65">Medium</option><option value="1">High</option></select>
+      <button id="alert-sound-toggle" type="button" aria-label="Turn alert sound off" aria-pressed="true">ON</button>
+      <button id="alert-sound-test" class="sound-preview-button" type="button" aria-label="Preview alert sound" title="Preview alert sound">▶</button>
+      <small id="alert-sound-state"></small>
+    </div>
+    <div class="alerts-tabs" role="tablist"><button class="active" type="button" data-alert-tab="active">Active</button><button type="button" data-alert-tab="triggered">Triggered</button><button type="button" data-alert-tab="paused">Paused</button></div>
+    <div id="alerts-list" class="alerts-list"></div>
+  </aside>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <script src="https://unpkg.com/lightweight-charts@5.0.9/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="js/alerts/alert-storage.js"></script>
+  <script src="js/alerts/alert-evaluator.js"></script>
+  <script src="js/alerts/alert-engine.js"></script>
+  <script src="js/services/chart-history.js"></script>
+  <script src="js/notifications/alert-sound.js"></script>
+  <script src="js/notifications/notification-center.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
