@@ -30,6 +30,8 @@ function createHttpServer({ runner, storage, notifier, config, logger, startedAt
         if (pathname === '/api/alerts' && req.method === 'GET') return send(res, 200, { alerts: runner.list() });
         if (pathname === '/api/alerts' && req.method === 'POST') { const result = await runner.create(await body(req)); return result.error ? error(res, result.error === 'DUPLICATE_ALERT' ? 409 : 422, result.error, result.message) : send(res, 201, result); }
         if (pathname === '/api/triggers' && req.method === 'GET') return send(res, 200, { triggers: runner.events() });
+        const priceMatch = pathname.match(/^\/api\/alerts\/([^/]+)\/price$/);
+        if (priceMatch && req.method === 'PATCH') { const result = await runner.updatePrice(priceMatch[1], (await body(req)).value); if (result.error === 'NOT_FOUND') return error(res, 404, result.error, result.message); return result.error ? error(res, result.error === 'DUPLICATE_ALERT' ? 409 : 422, result.error, result.message) : send(res, 200, result); }
         const alertMatch = pathname.match(/^\/api\/alerts\/([^/]+)(?:\/(pause|resume))?$/);
         if (alertMatch && req.method === 'POST' && alertMatch[2]) { const result = alertMatch[2] === 'pause' ? await runner.pause(alertMatch[1]) : await runner.resume(alertMatch[1]); return result ? send(res, 200, { alert: result }) : error(res, 404, 'NOT_FOUND', 'Alert not found.'); }
         if (alertMatch && req.method === 'DELETE' && !alertMatch[2]) { const result = await runner.remove(alertMatch[1]); return result ? send(res, 204, {}) : error(res, 404, 'NOT_FOUND', 'Alert not found.'); }

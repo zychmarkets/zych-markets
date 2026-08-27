@@ -17,6 +17,16 @@ class ServerAlertRunner {
   }
   async pause(id) { return this.change(id, alert => ({ ...alert, status: 'paused', updatedAt: this.now() })); }
   async resume(id) { return this.change(id, alert => ({ ...alert, status: 'active', armed: true, updatedAt: this.now() })); }
+  async updatePrice(id, value) {
+    const index = this.alerts.findIndex(item => item.id === id), price = Number(value);
+    if (index < 0) return { error: 'NOT_FOUND', message: 'Alert not found.' };
+    const current = this.alerts[index];
+    if (current.type !== 'price' || !Number.isFinite(price) || price <= 0) return { error: 'INVALID_PRICE', message: 'A positive price is required.' };
+    const next = { ...current, condition: { ...current.condition, value: price } };
+    if (!this.core.validateAlert(next)) return { error: 'INVALID_ALERT', message: 'Invalid alert update.' };
+    if (this.alerts.some((item, itemIndex) => itemIndex !== index && item.status !== 'triggered' && this.core.alertFingerprint(item) === this.core.alertFingerprint(next))) return { error: 'DUPLICATE_ALERT', message: 'This alert already exists.' };
+    this.alerts[index] = next; await this.persist(); await this.rebuild(); return { alert: structuredClone(next) };
+  }
   async remove(id) { const before = this.alerts.length; this.alerts = this.alerts.filter(item => item.id !== id); if (before === this.alerts.length) return null; await this.persist(); await this.rebuild(); return true; }
   async removeEvent(id) { const before = this.history.length; this.history = this.history.filter(item => item.id !== id); if (before === this.history.length) return null; await this.persist(); return true; }
   async change(id, mutate) { const index = this.alerts.findIndex(item => item.id === id); if (index < 0) return null; this.alerts[index] = mutate(this.alerts[index]); await this.persist(); await this.rebuild(); return structuredClone(this.alerts[index]); }

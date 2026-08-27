@@ -53,6 +53,11 @@ test('100 alerts across BTC ETH SOL use one transport and unique subscriptions',
   const diagnostics = f.runner.diagnostics(); assert.equal(diagnostics.activeAlerts, 100); assert.equal(diagnostics.activeMarkets, 3); assert.equal(diagnostics.connections, 1); assert.equal(diagnostics.subscriptions, 3); await f.close();
 });
 
+test('price update preserves alert identity and changes only condition value', async () => {
+  const f=await fixture(),created=await f.runner.create(definition()),before=created.alert,result=await f.runner.updatePrice(before.id,123.45),after=result.alert;
+  assert.equal(after.id,before.id);assert.equal(after.exchange,before.exchange);assert.equal(after.marketId,before.marketId);assert.equal(after.symbol,before.symbol);assert.equal(after.type,'price');assert.equal(after.condition.operator,before.condition.operator);assert.equal(after.condition.value,123.45);assert.equal(f.runner.list().length,1);assert.equal((await f.runner.updatePrice(before.id,-1)).error,'INVALID_PRICE');await f.close();
+});
+
 test('HTTP API health, CRUD, validation and malformed payload', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'zych-api-')), transport = new FakeTransport();
   const config = { host: '127.0.0.1', port: 0, dataDir: directory, historyLimit: 500, logLevel: 'error', root: path.resolve(__dirname, '..'), binanceRestBase: '', binanceWsBase: '' };
@@ -60,6 +65,8 @@ test('HTTP API health, CRUD, validation and malformed payload', async () => {
   let response = await fetch(`${base}/health`); assert.equal(response.status, 200); assert.equal((await response.json()).status, 'ok');
   response = await fetch(`${base}/alerts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(definition()) }); assert.equal(response.status, 201); const id = (await response.json()).alert.id;
   response = await fetch(`${base}/alerts`); assert.equal((await response.json()).alerts.length, 1);
+  response = await fetch(`${base}/alerts/${id}/price`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: 123.45 }) }); assert.equal(response.status, 200); assert.equal((await response.json()).alert.condition.value, 123.45);
+  assert.equal((await fetch(`${base}/alerts/${id}/price`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: 0 }) })).status, 422);
   assert.equal((await fetch(`${base}/alerts/${id}/pause`, { method: 'POST' })).status, 200); assert.equal((await fetch(`${base}/alerts/${id}/resume`, { method: 'POST' })).status, 200);
   assert.equal((await fetch(`${base}/alerts`, { method: 'POST', body: '{}' })).status, 422); assert.equal((await fetch(`${base}/alerts`, { method: 'POST', body: '{' })).status, 400);
   assert.equal((await fetch(`${base}/push/public-key`)).status, 503);
