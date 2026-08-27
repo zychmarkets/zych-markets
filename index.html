@@ -20,7 +20,7 @@
           <div id="search-results" class="dropdown-menu search-results" role="listbox" hidden></div>
         </div>
         <button id="mobile-search-button" class="square-button mobile-search-button" type="button" aria-label="Search coin">⌕</button>
-        <button id="alerts-button" class="square-button" type="button" aria-label="Alerts"><span aria-hidden="true">♢</span><span id="alerts-counter" class="notification-dot" hidden>0</span></button>
+        <button id="alerts-button" class="square-button" type="button" aria-label="Open Alert Hub" title="Alert Hub"><span aria-hidden="true">♢</span><span id="alerts-counter" class="notification-dot" hidden>0</span></button>
         <button class="square-button settings-button" type="button" aria-label="Settings">⚙</button>
         <button class="login-button" type="button">Login</button>
       </div>
@@ -100,7 +100,7 @@
   </div>
   <div id="alerts-panel-backdrop" class="alerts-panel-backdrop" hidden></div>
   <aside id="alerts-panel" class="alerts-panel" aria-label="Alerts panel" aria-hidden="true">
-    <header><div><h2>Alerts</h2><span id="alert-monitor-status" data-status="offline"><i></i> Offline</span></div><button type="button" data-close-alerts-panel aria-label="Close">×</button></header>
+    <header><div><h2>Alert Hub</h2><span id="alert-monitor-status" data-status="offline"><i></i> Offline</span></div><button type="button" data-close-alerts-panel aria-label="Close">×</button></header>
     <div class="alert-sound-controls">
       <label for="alert-sound-select">Sound</label>
       <select id="alert-sound-select" aria-label="Alert sound"><option value="zych-pulse">ZYCH Pulse</option><option value="soft-bell">Soft Bell</option><option value="terminal">Terminal</option><option value="urgent">Urgent</option></select>
@@ -111,7 +111,7 @@
       <button id="push-notifications-toggle" class="push-notifications-toggle" type="button" aria-pressed="false">Notifications OFF</button>
       <small id="alert-sound-state"></small>
     </div>
-    <div class="alerts-tabs" role="tablist"><button class="active" type="button" data-alert-tab="active">Active</button><button type="button" data-alert-tab="triggered">Triggered</button><button type="button" data-alert-tab="paused">Paused</button></div>
+    <div class="alerts-tabs" role="tablist"><button class="active" type="button" data-alert-tab="all">All</button><button type="button" data-alert-tab="active">Active</button><button type="button" data-alert-tab="paused">Paused</button><button type="button" data-alert-tab="triggered">Triggered</button></div>
     <div id="alerts-list" class="alerts-list"></div>
   </aside>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -120,6 +120,7 @@
   <script src="js/alerts/alert-storage.js"></script>
   <script src="js/alerts/server-alert-client.js"></script>
   <script src="js/alerts/quick-chart-alerts.js"></script>
+  <script src="js/alerts/alert-hub.js"></script>
   <script src="js/exchanges/browser-exchange-adapters.js"></script>
   <script src="js/services/chart-history.js"></script>
   <script src="js/notifications/alert-sound.js"></script>

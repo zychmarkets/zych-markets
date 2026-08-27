@@ -5,7 +5,7 @@
   "description": "ZYCH Markets terminal and server-side alert foundation",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node tests/alert-core.test.js && node tests/stabilization.test.js && node tests/quick-chart-alerts.test.js && node --test tests/server.test.js tests/push.test.js tests/multi-exchange.test.js"
+    "test": "node tests/alert-core.test.js && node tests/stabilization.test.js && node tests/quick-chart-alerts.test.js && node tests/alert-hub.test.js && node --test tests/server.test.js tests/push.test.js tests/multi-exchange.test.js"
   },
   "engines": {
     "node": ">=22"
