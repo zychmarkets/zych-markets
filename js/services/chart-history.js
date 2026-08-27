@@ -16,8 +16,8 @@
   const normalize = row => ({ time: Math.floor(row[0] / 1000), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[5]) });
 
   class ChartHistoryService {
-    constructor({ restBase = 'https://api.binance.com/api/v3', requestTimeout = 10000 } = {}) {
-      this.restBase = restBase; this.requestTimeout = requestTimeout; this.cache = new Map();
+    constructor({ adapters = null, restBase = 'https://api.binance.com/api/v3', requestTimeout = 10000 } = {}) {
+      this.adapters = adapters; this.restBase = restBase; this.requestTimeout = requestTimeout; this.cache = new Map();
     }
     entry(market, timeframe) {
       const key = keyFor(market, timeframe);
@@ -26,12 +26,13 @@
       if (this.cache.size > MAX_CACHE_ENTRIES) [...this.cache.values()].filter(item => item.key !== key && !item.loading).sort((a, b) => a.lastUsed - b.lastUsed).slice(0, this.cache.size - MAX_CACHE_ENTRIES).forEach(item => this.cache.delete(item.key));
       return entry;
     }
-    async request(symbol, timeframe, endTime, signal, limit = PAGE_LIMIT) {
+    async request(market, timeframe, endTime, signal, limit = PAGE_LIMIT) {
+      if (this.adapters?.[market.exchange]) return this.adapters[market.exchange].candles(market, timeframe, endTime, limit, signal);
       const controller = new AbortController(), timer = setTimeout(() => controller.abort(new DOMException('History request timed out', 'TimeoutError')), this.requestTimeout);
       const abort = () => controller.abort(signal?.reason); signal?.addEventListener('abort', abort, { once: true });
       const end = Number.isFinite(endTime) ? `&endTime=${Math.floor(endTime)}` : '';
       try {
-        const response = await fetch(`${this.restBase}/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(timeframe)}&limit=${limit}${end}`, { signal: controller.signal });
+        const response = await fetch(`${this.restBase}/klines?symbol=${encodeURIComponent(market.symbol)}&interval=${encodeURIComponent(timeframe)}&limit=${limit}${end}`, { signal: controller.signal });
         if (!response.ok) throw new Error(`Binance history HTTP ${response.status}`);
         return (await response.json()).map(normalize);
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
@@ -54,7 +55,7 @@
           if (entry.requestedEnds.has(requestKey)) { entry.endReached = true; break; }
           entry.requestedEnds.add(requestKey);
           try {
-            const rows = await this.request(market.symbol, timeframe, endTime, signal, limit);
+            const rows = await this.request(market, timeframe, endTime, signal, limit);
             if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
             const added = this.merge(entry, rows); entry.pages += 1;
             if (!rows.length || rows.length < limit || added === 0) entry.endReached = true;
@@ -73,7 +74,7 @@
       entry.requestedEnds.add(requestKey);
       entry.loading = (async () => {
         try {
-          const rows = await this.request(market.symbol, timeframe, endTime, signal);
+          const rows = await this.request(market, timeframe, endTime, signal);
           if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
           const added = this.merge(entry, rows); entry.pages += 1;
           if (!rows.length || rows.length < PAGE_LIMIT || added === 0) entry.endReached = true;

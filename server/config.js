@@ -15,6 +15,8 @@ function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
     logLevel: env.ZYCH_LOG_LEVEL || 'info',
     binanceRestBase: env.BINANCE_REST_BASE || 'https://api.binance.com/api/v3',
     binanceWsBase: env.BINANCE_WS_BASE || 'wss://stream.binance.com:9443',
+    bybitRestBase: env.BYBIT_REST_BASE || 'https://api.bybit.com/v5/market',
+    bybitWsBase: env.BYBIT_WS_BASE || 'wss://stream.bybit.com/v5/public/spot',
     vapidPublicKey: env.VAPID_PUBLIC_KEY || '',
     vapidPrivateKey: env.VAPID_PRIVATE_KEY || '',
     vapidSubject: env.VAPID_SUBJECT || 'mailto:admin@localhost',
