@@ -63,7 +63,7 @@
           <span id="market-status" class="market-status" data-status="connecting"><i></i> CONNECTING</span>
         </div>
         <div class="chart-meta"><div><strong id="chart-title">Bitcoin / TetherUS · 1h · BINANCE</strong><span id="ohlc-status">Loading market data…</span></div></div>
-        <div class="chart-stage"><div id="chart" class="chart-container" aria-label="BTC USDT candlestick chart"></div><div id="chart-state" class="chart-state">Loading market data…</div><div id="chart-history-state" class="chart-history-state" role="status" hidden></div></div>
+        <div class="chart-stage"><div id="chart" class="chart-container" aria-label="BTC USDT candlestick chart"></div><div id="chart-state" class="chart-state">Loading market data…</div><div id="chart-history-state" class="chart-history-state" role="status" hidden></div><div id="quick-alert-menu" class="quick-alert-menu" role="menu" hidden><button type="button" role="menuitem" data-quick-alert-action>Add alert</button></div></div>
         <div class="connection-bar"><span id="connection-status" data-status="connecting"><i></i> CONNECTING</span><span id="connection-message">Binance market data</span><button id="retry-button" class="retry-button" type="button" hidden>Retry</button><span class="connection-time">UTC+3</span></div>
       </section>
 
@@ -119,6 +119,7 @@
   <script src="js/alerts/alert-core.js"></script>
   <script src="js/alerts/alert-storage.js"></script>
   <script src="js/alerts/server-alert-client.js"></script>
+  <script src="js/alerts/quick-chart-alerts.js"></script>
   <script src="js/exchanges/browser-exchange-adapters.js"></script>
   <script src="js/services/chart-history.js"></script>
   <script src="js/notifications/alert-sound.js"></script>
