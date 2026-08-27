@@ -15,6 +15,7 @@
         <a class="active" href="#terminal">Markets</a><a href="#watchlist">Scanner</a><a href="#">Signals</a><a href="#">News</a>
       </nav>
       <div class="header-actions">
+        <div class="global-exchange-shell"><button id="active-exchange-selector" class="global-exchange-button" type="button" aria-haspopup="menu" aria-expanded="false"><small>Workspace</small><strong data-active-exchange-label>Binance</strong><span>⌄</span></button><div id="active-exchange-menu" class="dropdown-menu global-exchange-menu" role="menu" hidden><button class="dropdown-item active" type="button" data-active-exchange-option="binance">Binance</button><button class="dropdown-item" type="button" data-active-exchange-option="bybit">Bybit</button><button class="dropdown-item" type="button" data-active-exchange-option="okx">OKX</button></div></div>
         <div class="search-shell">
           <label class="coin-search"><span aria-hidden="true">⌕</span><input id="coin-search" type="search" placeholder="Search coin..." aria-label="Search coin" autocomplete="off" aria-expanded="false" aria-controls="search-results"><kbd>/</kbd></label>
           <div id="search-results" class="dropdown-menu search-results" role="listbox" hidden></div>
@@ -122,6 +123,7 @@
   <script src="js/alerts/quick-chart-alerts.js"></script>
   <script src="js/alerts/alert-hub.js"></script>
   <script src="js/exchanges/browser-exchange-adapters.js"></script>
+  <script src="js/services/exchange-workspace.js"></script>
   <script src="js/services/chart-history.js"></script>
   <script src="js/notifications/alert-sound.js"></script>
   <script src="js/notifications/notification-center.js"></script>
