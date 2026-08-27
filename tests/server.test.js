@@ -58,6 +58,11 @@ test('price update preserves alert identity and changes only condition value', a
   assert.equal(after.id,before.id);assert.equal(after.exchange,before.exchange);assert.equal(after.marketId,before.marketId);assert.equal(after.symbol,before.symbol);assert.equal(after.type,'price');assert.equal(after.condition.operator,before.condition.operator);assert.equal(after.condition.value,123.45);assert.equal(f.runner.list().length,1);assert.equal((await f.runner.updatePrice(before.id,-1)).error,'INVALID_PRICE');await f.close();
 });
 
+test('pause preserves identity and price, suppresses triggers, and resume restores evaluation', async () => {
+  const f=await fixture(),created=(await f.runner.create(definition())).alert,before=structuredClone(created),paused=await f.runner.pause(created.id);
+  assert.equal(paused.id,before.id);assert.equal(paused.marketId,before.marketId);assert.equal(paused.exchange,before.exchange);assert.equal(paused.symbol,before.symbol);assert.deepEqual(paused.condition,before.condition);assert.equal(paused.status,'paused');await f.runner.handle(ticker(101));assert.equal(f.notifications.length,0);assert.equal(f.runner.list().find(alert=>alert.id===created.id).status,'paused');const resumed=await f.runner.resume(created.id);assert.equal(resumed.id,before.id);assert.deepEqual(resumed.condition,before.condition);await f.runner.handle(ticker(101));assert.equal(f.notifications.length,1);await f.close();
+});
+
 test('HTTP API health, CRUD, validation and malformed payload', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'zych-api-')), transport = new FakeTransport();
   const config = { host: '127.0.0.1', port: 0, dataDir: directory, historyLimit: 500, logLevel: 'error', root: path.resolve(__dirname, '..'), binanceRestBase: '', binanceWsBase: '' };

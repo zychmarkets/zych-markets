@@ -36,7 +36,9 @@
     stop() { this.running = false; }
     async create(definition) { try { const result = await this.request('/alerts', { method: 'POST', body: JSON.stringify(definition) }); await this.sync({ notify: false }); return result; } catch (error) { return { error: error.message }; } }
     updatePrice(id, value) { return this.request(`/alerts/${encodeURIComponent(id)}/price`, { method: 'PATCH', body: JSON.stringify({ value }) }); }
-    async action(id, action) { await this.request(`/alerts/${encodeURIComponent(id)}${action ? `/${action}` : ''}`, { method: action ? 'POST' : 'DELETE' }); await this.sync({ notify: false }); }
+    updateStatus(id, status) { return this.request(`/alerts/${encodeURIComponent(id)}/${status === 'paused' ? 'pause' : 'resume'}`, { method: 'POST' }); }
+    deleteAlert(id) { return this.request(`/alerts/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+    async action(id, action) { if (action) await this.updateStatus(id, action === 'pause' ? 'paused' : 'active'); else await this.deleteAlert(id); await this.sync({ notify: false }); }
     pause(id) { return this.action(id, 'pause'); }
     resume(id) { return this.action(id, 'resume'); }
     remove(id) { return this.action(id, ''); }
