@@ -16,6 +16,7 @@
   const finite = value => Number.isFinite(Number(value));
   const positive = value => finite(value) && Number(value) > 0;
   const safeTicker = value => typeof value === 'string' && /^[A-Z0-9]{1,20}$/.test(value);
+  const safeSymbol = value => typeof value === 'string' && /^[A-Z0-9-]{1,30}$/.test(value);
 
   function validateCondition(condition) {
     if (!condition || typeof condition !== 'object') return false;
@@ -50,7 +51,7 @@
 
   function validateAlert(record) {
     const alert = migrateAlert(record);
-    return Boolean(alert && typeof alert.id === 'string' && alert.id && typeof alert.marketId === 'string' && alert.marketId && typeof alert.exchange === 'string' && alert.exchange && safeTicker(alert.symbol) && safeTicker(alert.baseAsset) && safeTicker(alert.quoteAsset) && ALERT_TYPES.includes(alert.type) && ALERT_MODES.includes(alert.mode) && ALERT_STATUSES.includes(alert.status) && finite(alert.createdAt) && validateCondition(alert.condition));
+    return Boolean(alert && typeof alert.id === 'string' && alert.id && typeof alert.marketId === 'string' && alert.marketId && typeof alert.exchange === 'string' && alert.exchange && safeSymbol(alert.symbol) && safeTicker(alert.baseAsset) && safeTicker(alert.quoteAsset) && ALERT_TYPES.includes(alert.type) && ALERT_MODES.includes(alert.mode) && ALERT_STATUSES.includes(alert.status) && finite(alert.createdAt) && validateCondition(alert.condition));
   }
 
   function createAlert(definition, { id, now = Date.now() } = {}) {
@@ -79,7 +80,7 @@
   }
 
   function validateMarketEvent(event) {
-    if (!event || typeof event !== 'object' || !['ticker', 'candle'].includes(event.eventType) || typeof event.exchange !== 'string' || !safeTicker(event.symbol) || !finite(event.timestamp)) return false;
+    if (!event || typeof event !== 'object' || !['ticker', 'candle'].includes(event.eventType) || typeof event.exchange !== 'string' || !safeSymbol(event.symbol) || !finite(event.timestamp)) return false;
     if (event.eventType === 'ticker') return finite(event.price);
     return finite(event.price) && finite(event.open) && finite(event.volume) && typeof event.interval === 'string';
   }

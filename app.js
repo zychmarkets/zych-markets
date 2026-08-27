@@ -13,9 +13,8 @@
     LINK:{name:'Chainlink',icon:'L',className:'generic'},SUI:{name:'Sui',icon:'S',className:'generic'},ARB:{name:'Arbitrum',icon:'A',className:'generic'},PEPE:{name:'Pepe',icon:'P',className:'generic'},AVAX:{name:'Avalanche',icon:'A',className:'generic'},TRX:{name:'TRON',icon:'T',className:'generic'},
     DOT:{name:'Polkadot',icon:'D',className:'generic'},LTC:{name:'Litecoin',icon:'Ł',className:'generic'},BCH:{name:'Bitcoin Cash',icon:'B',className:'generic'},TON:{name:'Toncoin',icon:'T',className:'generic'},SHIB:{name:'Shiba Inu',icon:'S',className:'generic'},UNI:{name:'Uniswap',icon:'U',className:'generic'},NEAR:{name:'NEAR Protocol',icon:'N',className:'generic'},APT:{name:'Aptos',icon:'A',className:'generic'}
   };
-  let MARKETS = DEFAULT_WATCHLIST.flatMap(asset => ['binance','bybit'].map(exchange => ({id:`${exchange}:${asset}USDT`,marketId:`${exchange}:${asset}USDT`,asset,symbol:`${asset}USDT`,baseAsset:asset,quoteAsset:'USDT',exchange,enabled:true,status:'TRADING'})));
+  let MARKETS = DEFAULT_WATCHLIST.flatMap(asset => ['binance','bybit'].map(exchange => ({id:`${exchange}:${asset}USDT`,marketId:`${exchange}:${asset}USDT`,asset,symbol:`${asset}USDT`,baseAsset:asset,quoteAsset:'USDT',exchange,enabled:true,status:'TRADING'}))).concat(DEFAULT_WATCHLIST.map(asset=>({id:`okx:${asset}-USDT`,marketId:`okx:${asset}-USDT`,asset,symbol:`${asset}-USDT`,baseAsset:asset,quoteAsset:'USDT',exchange:'okx',enabled:true,status:'live'})));
   const FUTURE_MARKETS = [
-    {id:'okx:BTCUSDT',asset:'BTC',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT',exchange:'okx',enabled:false},
     {id:'coinbase:BTCUSD',asset:'BTC',symbol:'BTCUSD',baseAsset:'BTC',quoteAsset:'USD',exchange:'coinbase',enabled:false}
   ];
   const EXCHANGES={binance:{label:'Binance'},bybit:{label:'Bybit'},okx:{label:'OKX'},coinbase:{label:'Coinbase'}};
@@ -49,8 +48,8 @@
 
   function normalizeUniverse(markets){
     const leveraged=/(UP|DOWN|BULL|BEAR)$/;
-    const safeTicker=value=>typeof value==='string'&&/^[A-Z0-9]{1,20}$/.test(value);
-    MARKETS=markets.filter(row=>row.enabled&&safeTicker(row.symbol)&&safeTicker(row.baseAsset)&&safeTicker(row.quoteAsset)&&QUOTE_PRIORITY.includes(row.quoteAsset)&&!leveraged.test(row.baseAsset));
+    const safeTicker=value=>typeof value==='string'&&/^[A-Z0-9]{1,20}$/.test(value),safeSymbol=value=>typeof value==='string'&&/^[A-Z0-9-]{1,30}$/.test(value);
+    MARKETS=markets.filter(row=>row.enabled&&safeSymbol(row.symbol)&&safeTicker(row.baseAsset)&&safeTicker(row.quoteAsset)&&QUOTE_PRIORITY.includes(row.quoteAsset)&&!leveraged.test(row.baseAsset));
     rebuildAssetIndex();
     document.documentElement.dataset.universeMarkets=String(MARKETS.length);document.documentElement.dataset.universeAssets=String(assetIndex.size);
     state.watchlist=state.watchlist.filter(asset=>assetIndex.has(asset));
