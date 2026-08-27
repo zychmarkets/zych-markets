@@ -1,0 +1,16 @@
+{
+  "name": "zych-markets",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ZYCH Markets terminal and server-side alert foundation",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node tests/alert-core.test.js && node tests/stabilization.test.js && node --test tests/server.test.js tests/push.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
+  }
+}

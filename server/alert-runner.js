@@ -1,0 +1,40 @@
+'use strict';
+const crypto = require('node:crypto');
+
+class ServerAlertRunner {
+  constructor({ core, storage, transport, notifier, logger, now = Date.now }) {
+    this.core = core; this.storage = storage; this.transport = transport; this.notifier = notifier; this.logger = logger; this.now = now; this.alerts = []; this.history = []; this.status = 'stopped'; this.queue = Promise.resolve();
+  }
+  async start() { this.alerts = this.storage.loadAlerts(); this.history = this.storage.loadTriggerHistory(); this.status = 'running'; await this.rebuild(); this.logger.info('runner_started', { alerts: this.alerts.length, active: this.active().length }); }
+  active() { return this.alerts.filter(item => item.status === 'active'); }
+  list() { return structuredClone(this.alerts); }
+  events() { return structuredClone(this.history).reverse(); }
+  async create(definition) {
+    const alert = this.core.createAlert(definition, { id: crypto.randomUUID(), now: this.now() });
+    if (!alert) return { error: 'INVALID_ALERT', message: 'Invalid alert definition.' };
+    if (this.alerts.some(item => item.status !== 'triggered' && this.core.alertFingerprint(item) === this.core.alertFingerprint(alert))) return { error: 'DUPLICATE_ALERT', message: 'This alert already exists.' };
+    this.alerts.push(alert); await this.persist(); await this.rebuild(); return { alert: structuredClone(alert) };
+  }
+  async pause(id) { return this.change(id, alert => ({ ...alert, status: 'paused', updatedAt: this.now() })); }
+  async resume(id) { return this.change(id, alert => ({ ...alert, status: 'active', armed: true, updatedAt: this.now() })); }
+  async remove(id) { const before = this.alerts.length; this.alerts = this.alerts.filter(item => item.id !== id); if (before === this.alerts.length) return null; await this.persist(); await this.rebuild(); return true; }
+  async removeEvent(id) { const before = this.history.length; this.history = this.history.filter(item => item.id !== id); if (before === this.history.length) return null; await this.persist(); return true; }
+  async change(id, mutate) { const index = this.alerts.findIndex(item => item.id === id); if (index < 0) return null; this.alerts[index] = mutate(this.alerts[index]); await this.persist(); await this.rebuild(); return structuredClone(this.alerts[index]); }
+  async persist() { await this.storage.save(this.alerts, this.history); }
+  async rebuild() { if (this.status !== 'running') return; await this.transport.start(this.active(), { onEvent: event => this.enqueue(event), onStatus: status => { this.transportStatus = status; } }); }
+  enqueue(event) { this.queue = this.queue.then(() => this.handle(event)).catch(error => this.logger.error('runner_event_error', { message: error.message })); return this.queue; }
+  async handle(event) {
+    let changed = false, subscriptionsChanged = false;
+    for (let index = 0; index < this.alerts.length; index += 1) {
+      const alert = this.alerts[index]; if (!this.core.matchesEvent(alert, event)) continue;
+      const result = this.core.processMarketEvent(alert, event, { now: this.now(), eventId: crypto.randomUUID() });
+      if (!result.stateChanged) continue;
+      changed = true; this.alerts[index] = result.alert;
+      if (result.triggered) { this.history.push(result.triggerEvent); await this.notifier.notify(result.triggerEvent); if (result.alert.status === 'triggered') subscriptionsChanged = true; }
+    }
+    if (changed) await this.persist(); if (subscriptionsChanged) await this.rebuild();
+  }
+  async stop() { this.status = 'stopping'; await this.queue; await this.persist(); await this.transport.stop(); await this.storage.close(); this.status = 'stopped'; }
+  diagnostics() { const markets = new Set(this.active().map(item => item.marketId)); return { status: this.status, activeAlerts: this.active().length, activeMarkets: markets.size, ...this.transport.diagnostics() }; }
+}
+module.exports = { ServerAlertRunner };

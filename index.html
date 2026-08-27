@@ -108,6 +108,7 @@
       <select id="alert-sound-volume" aria-label="Alert sound volume"><option value="0.35">Low</option><option value="0.65">Medium</option><option value="1">High</option></select>
       <button id="alert-sound-toggle" type="button" aria-label="Turn alert sound off" aria-pressed="true">ON</button>
       <button id="alert-sound-test" class="sound-preview-button" type="button" aria-label="Preview alert sound" title="Preview alert sound">▶</button>
+      <button id="push-notifications-toggle" class="push-notifications-toggle" type="button" aria-pressed="false">Notifications OFF</button>
       <small id="alert-sound-state"></small>
     </div>
     <div class="alerts-tabs" role="tablist"><button class="active" type="button" data-alert-tab="active">Active</button><button type="button" data-alert-tab="triggered">Triggered</button><button type="button" data-alert-tab="paused">Paused</button></div>
@@ -115,12 +116,14 @@
   </aside>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
   <script src="https://unpkg.com/lightweight-charts@5.0.9/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="js/alerts/alert-core.js"></script>
   <script src="js/alerts/alert-storage.js"></script>
-  <script src="js/alerts/alert-evaluator.js"></script>
-  <script src="js/alerts/alert-engine.js"></script>
+  <script src="js/alerts/server-alert-client.js"></script>
   <script src="js/services/chart-history.js"></script>
   <script src="js/notifications/alert-sound.js"></script>
   <script src="js/notifications/notification-center.js"></script>
+  <script src="js/notifications/browser-notifier.js"></script>
+  <script src="js/notifications/push-manager.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
