@@ -5,6 +5,8 @@ const integer = (value, fallback, min, max) => {
   const number = Number(value);
   return Number.isInteger(number) && number >= min && number <= max ? number : fallback;
 };
+const number = (value, fallback, min = 0) => { const parsed=Number(value); return Number.isFinite(parsed)&&parsed>=min?parsed:fallback; };
+const list = (value, fallback) => String(value || fallback).split(',').map(item=>item.trim().toUpperCase()).filter(Boolean);
 
 function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
   return Object.freeze({
@@ -20,6 +22,19 @@ function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
     okxRestBase: env.OKX_REST_BASE || 'https://www.okx.com/api/v5',
     okxWsPublicBase: env.OKX_WS_PUBLIC_BASE || 'wss://ws.okx.com:8443/ws/v5/public',
     okxWsBusinessBase: env.OKX_WS_BUSINESS_BASE || 'wss://ws.okx.com:8443/ws/v5/business',
+    radarEnabled: env.RADAR_UNIVERSE_ENABLED !== 'false',
+    radarRefreshIntervalMs: integer(env.RADAR_UNIVERSE_REFRESH_MS, 60000, 5000, 3600000),
+    universePolicy: Object.freeze({
+      version: env.RADAR_POLICY_VERSION || 'universe-v1',
+      marketType: 'spot',
+      allowedQuotes: Object.freeze(list(env.RADAR_ALLOWED_QUOTES, 'USDT')),
+      targetUniverseSize: integer(env.RADAR_TARGET_SIZE, 100, 1, 200),
+      minimumQuoteVolume24h: number(env.RADAR_MIN_QUOTE_VOLUME_24H, 1000000),
+      staleSnapshotTimeoutMs: integer(env.RADAR_STALE_SNAPSHOT_MS, 180000, 10000, 86400000),
+      maximumSpreadPct: env.RADAR_MAX_SPREAD_PCT ? number(env.RADAR_MAX_SPREAD_PCT, null) : null,
+      missingSpreadPolicy: env.RADAR_MISSING_SPREAD_POLICY === 'exclude' ? 'exclude' : 'allow',
+      liquidityTiers: Object.freeze({ A:number(env.RADAR_TIER_A_VOLUME,100000000), B:number(env.RADAR_TIER_B_VOLUME,10000000), C:number(env.RADAR_TIER_C_VOLUME,1000000) })
+    }),
     vapidPublicKey: env.VAPID_PUBLIC_KEY || '',
     vapidPrivateKey: env.VAPID_PRIVATE_KEY || '',
     vapidSubject: env.VAPID_SUBJECT || 'mailto:admin@localhost',

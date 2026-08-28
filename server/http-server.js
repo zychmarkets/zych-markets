@@ -14,7 +14,7 @@ async function body(req, limit = 32768) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { const failure = new Error('Malformed JSON'); failure.code = 'MALFORMED_JSON'; throw failure; }
 }
 
-function createHttpServer({ runner, storage, notifier, config, logger, startedAt = Date.now() }) {
+function createHttpServer({ runner, storage, notifier, universe = null, config, logger, startedAt = Date.now() }) {
   let accepting = true;
   const server = http.createServer(async (req, res) => {
     res.setTimeout(15000);
@@ -23,6 +23,8 @@ function createHttpServer({ runner, storage, notifier, config, logger, startedAt
       if (pathname.startsWith('/api/')) {
         if (!accepting) return error(res, 503, 'SHUTTING_DOWN', 'Server is shutting down.');
         if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, { status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } });
+        if (pathname === '/api/radar/universe' && req.method === 'GET') return universe ? send(res, 200, universe.getSnapshot({ includeExcluded:url.searchParams.get('includeExcluded')==='true' })) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
+        if (pathname === '/api/radar/universe/health' && req.method === 'GET') return universe ? send(res,200,universe.health()) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
         if (pathname === '/api/push/public-key' && req.method === 'GET') return config.vapidPublicKey ? send(res, 200, { publicKey: config.vapidPublicKey }) : error(res, 503, 'PUSH_NOT_CONFIGURED', 'Web Push is not configured.');
         if (pathname === '/api/push/status' && req.method === 'GET') return send(res, 200, notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 });
         if (pathname === '/api/push/subscribe' && req.method === 'POST') { const record = await storage.savePushSubscription(await body(req)); if (!record) return error(res, 422, 'INVALID_SUBSCRIPTION', 'Invalid push subscription.'); logger.info('push_subscription_created', { endpointHost: new URL(record.endpoint).host }); return send(res, 201, { subscribed: true }); }

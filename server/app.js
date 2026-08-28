@@ -10,6 +10,9 @@ const { MultiExchangeMarketTransport } = require('./transports/multi-exchange-ma
 const { WebPushNotifier } = require('./notifiers/web-push-notifier.js');
 const { ServerAlertRunner } = require('./alert-runner.js');
 const { createHttpServer } = require('./http-server.js');
+const { BinanceCatalogAdapter, BybitCatalogAdapter, OkxCatalogAdapter } = require('./radar/catalog-adapters.js');
+const { MarketCatalogService } = require('./radar/market-catalog-service.js');
+const { MarketUniverseService } = require('./radar/market-universe-service.js');
 
 async function createServerApp(options = {}) {
   const config = options.config || loadConfig(), logger = options.logger || createLogger(config.logLevel);
@@ -17,12 +20,14 @@ async function createServerApp(options = {}) {
   const transport = options.transport || new MultiExchangeMarketTransport({ logger, transports: { binance: new BinanceMarketTransport({ restBase: config.binanceRestBase, wsBase: config.binanceWsBase, logger }), bybit: new BybitMarketTransport({ restBase: config.bybitRestBase, wsBase: config.bybitWsBase, logger }), okx: new OkxMarketTransport({ restBase: config.okxRestBase, wsPublicBase: config.okxWsPublicBase, wsBusinessBase: config.okxWsBusinessBase, logger }) } });
   const notifier = options.notifier || new WebPushNotifier({ storage, logger, publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject });
   const runner = options.runner || new ServerAlertRunner({ core, storage, transport, notifier, logger }); await runner.start();
-  const httpServer = createHttpServer({ runner, storage, notifier, config, logger });
+  const universe = options.universe || (config.radarEnabled === true ? new MarketUniverseService({ catalog:new MarketCatalogService({ logger, adapters:[new BinanceCatalogAdapter({restBase:config.binanceRestBase}),new BybitCatalogAdapter({restBase:config.bybitRestBase}),new OkxCatalogAdapter({restBase:config.okxRestBase})] }), policy:config.universePolicy, refreshIntervalMs:config.radarRefreshIntervalMs, logger }) : null);
+  if(universe)await universe.initialize();
+  const httpServer = createHttpServer({ runner, storage, notifier, universe, config, logger });
   let stopped = false;
   return {
-    config, logger, storage, transport, runner, server: httpServer.server,
+    config, logger, storage, transport, runner, universe, server: httpServer.server,
     async listen() { await new Promise((resolve, reject) => { httpServer.server.once('error', reject); httpServer.server.listen(config.port, config.host, resolve); }); const address = httpServer.server.address(); logger.info('server_started', { host: config.host, port: address.port }); return address; },
-    async stop() { if (stopped) return; stopped = true; httpServer.stopAccepting(); await new Promise(resolve => httpServer.server.listening ? httpServer.server.close(resolve) : resolve()); await runner.stop(); logger.info('server_stopped'); }
+    async stop() { if (stopped) return; stopped = true; httpServer.stopAccepting(); await new Promise(resolve => httpServer.server.listening ? httpServer.server.close(resolve) : resolve()); await universe?.stop(); await runner.stop(); logger.info('server_stopped'); }
   };
 }
 module.exports = { createServerApp };

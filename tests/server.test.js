@@ -66,8 +66,11 @@ test('pause preserves identity and price, suppresses triggers, and resume restor
 test('HTTP API health, CRUD, validation and malformed payload', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'zych-api-')), transport = new FakeTransport();
   const config = { host: '127.0.0.1', port: 0, dataDir: directory, historyLimit: 500, logLevel: 'error', root: path.resolve(__dirname, '..'), binanceRestBase: '', binanceWsBase: '' };
-  const app = await createServerApp({ config, logger: silent, transport }); const address = await app.listen(), base = `http://127.0.0.1:${address.port}/api`;
+  const universe={stopped:false,async initialize(){},getSnapshot:({includeExcluded}={})=>({generatedAt:1,policyVersion:'test',markets:[{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',eligibility:{eligible:true,liquidityTier:'A',reasons:['ACTIVE_MARKET']}}],...(includeExcluded?{excludedMarkets:[]}:{}),coverage:{status:'HEALTHY'}}),health:()=>({generatedAt:1,policyVersion:'test',coverage:{status:'HEALTHY'}}),async stop(){this.stopped=true}};
+  const app = await createServerApp({ config, logger: silent, transport, universe }); const address = await app.listen(), base = `http://127.0.0.1:${address.port}/api`;
   let response = await fetch(`${base}/health`); assert.equal(response.status, 200); assert.equal((await response.json()).status, 'ok');
+  response=await fetch(`${base}/radar/universe?includeExcluded=true`);assert.equal(response.status,200);const radar=await response.json();assert.equal(radar.markets[0].marketType,'spot');assert.deepEqual(radar.excludedMarkets,[]);
+  response=await fetch(`${base}/radar/universe/health`);assert.equal((await response.json()).coverage.status,'HEALTHY');
   response = await fetch(`${base}/alerts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(definition()) }); assert.equal(response.status, 201); const id = (await response.json()).alert.id;
   response = await fetch(`${base}/alerts`); assert.equal((await response.json()).alerts.length, 1);
   response = await fetch(`${base}/alerts/${id}/price`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: 123.45 }) }); assert.equal(response.status, 200); assert.equal((await response.json()).alert.condition.value, 123.45);
@@ -79,7 +82,7 @@ test('HTTP API health, CRUD, validation and malformed payload', async () => {
   assert.equal((await fetch(`${base}/push/subscribe`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(pushRecord) })).status, 201);
   assert.equal((await fetch(`${base}/push/subscribe`, { method: 'POST', body: '{}' })).status, 422);
   assert.equal((await fetch(`${base}/push/unsubscribe`, { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: pushRecord.endpoint }) })).status, 200);
-  assert.equal((await fetch(`${base}/alerts/${id}`, { method: 'DELETE' })).status, 204); await app.stop(); await fs.rm(directory, { recursive: true, force: true });
+  assert.equal((await fetch(`${base}/alerts/${id}`, { method: 'DELETE' })).status, 204); await app.stop();assert.equal(universe.stopped,true); await fs.rm(directory, { recursive: true, force: true });
 });
 
 test('Binance transport reconnects and resubscribes without duplicate streams', async () => {
