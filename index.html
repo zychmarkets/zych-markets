@@ -35,18 +35,14 @@
       <article class="pulse-card demo-card" title="Demo data — external dominance source not connected"><div class="pulse-copy"><b>BTC.D <small>DEMO</small></b><strong>58.25%</strong><span class="negative">−0.27%</span></div><svg class="sparkline negative-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 8 L9 7 L17 11 L25 9 L33 15 L42 13 L51 21 L60 18 L69 25"/></svg></article>
       <article class="pulse-card status-card demo-card" title="Demo data — sentiment source not connected"><div class="pulse-copy"><b>Fear &amp; Greed <small>DEMO</small></b><strong>27</strong></div><span class="negative status-label">FEAR</span></article>
       <article class="pulse-card status-card demo-card" title="Demo data — altseason source not connected"><div class="pulse-copy"><b>Altseason <small>DEMO</small></b><strong>41</strong></div><span class="neutral status-label">NEUTRAL</span></article>
-      <article class="pulse-card" data-pulse-volume><div class="pulse-copy"><b>Watchlist volume</b><strong>—</strong><span>24h</span></div></article>
     </section>
 
     <main id="terminal" class="terminal-layout">
       <section class="chart-workspace" aria-label="Market chart">
         <div class="instrument-toolbar">
-          <div class="instrument-controls">
-            <div class="instrument-identity"><span id="toolbar-market-icon" class="coin-icon btc small">₿</span><span><strong data-pair-label>BTC / USDT</strong><small data-exchange-label>Binance</small></span></div>
-            <button id="favorite-button" class="favorite-button" type="button" aria-label="Add selected asset to Watchlist" aria-pressed="true">★</button>
-          </div>
           <div class="instrument-quote">
-            <div class="quote-primary"><span class="quote-label" data-pair-label>BTC / USDT</span><strong id="current-price">—</strong></div>
+            <div class="primary-market-identity"><span id="toolbar-market-icon" class="coin-icon btc small">₿</span><span><strong data-pair-label>BTC / USDT</strong><small data-exchange-label>Binance</small></span><button id="favorite-button" class="favorite-button" type="button" aria-label="Add selected market to Watchlist" aria-pressed="true">★</button></div>
+            <div class="quote-primary"><strong id="current-price">—</strong></div>
             <span id="toolbar-change" class="quote-change">— <small>24h</small></span>
             <dl class="toolbar-stats" aria-label="24 hour market statistics">
               <div><dt>High</dt><dd id="toolbar-high">—</dd></div>
@@ -62,7 +58,7 @@
           </div>
           <span id="market-status" class="market-status" data-status="connecting"><i></i> CONNECTING</span>
         </div>
-        <div class="chart-meta"><div><strong id="chart-title">Bitcoin / TetherUS · 1h · BINANCE</strong><span id="ohlc-status">Loading market data…</span></div></div>
+        <div class="chart-meta"><div><span id="ohlc-status">Loading market data…</span></div></div>
         <div class="chart-stage"><div id="chart" class="chart-container" aria-label="BTC USDT candlestick chart"></div><div id="chart-state" class="chart-state">Loading market data…</div><div id="chart-history-state" class="chart-history-state" role="status" hidden></div><div id="quick-alert-menu" class="quick-alert-menu" role="menu" hidden><button type="button" role="menuitem" data-quick-alert-action>Add alert</button></div><div id="alert-line-menu" class="quick-alert-menu alert-line-menu" role="menu" hidden></div></div>
         <div class="connection-bar"><span id="connection-status" data-status="connecting"><i></i> CONNECTING</span><span id="connection-message">Binance market data</span><button id="retry-button" class="retry-button" type="button" hidden>Retry</button><span class="connection-time">UTC+3</span></div>
       </section>
@@ -70,15 +66,9 @@
       <aside id="watchlist" class="market-sidebar">
         <section class="watchlist-panel">
           <header class="panel-header"><h2>Watchlist</h2><div><button id="add-watchlist-button" type="button" aria-label="Find asset to add">＋</button><button type="button" aria-label="Watchlist menu">•••</button></div></header>
-          <div class="watchlist-tabs" role="tablist" aria-label="Watchlist filters"><button class="active" type="button">ALL</button><button type="button">USDT</button><button type="button">BTC</button><button type="button">ETH</button><button type="button">FAV</button></div>
+          <div class="watchlist-tabs" role="tablist" aria-label="Watchlist filters"><button class="active" type="button">ALL</button><button type="button">FAV</button></div>
           <div class="watchlist-head"><span>Asset</span><span>Last</span><span>Chg%</span></div>
           <div id="watchlist-rows" class="watchlist-rows" aria-live="polite"></div>
-        </section>
-        <section class="instrument-panel">
-          <header><div><span id="detail-icon" class="coin-icon btc small">₿</span><h2 data-pair-label>BTC / USDT</h2></div><span data-exchange-label>Binance</span></header>
-          <div class="instrument-price"><strong id="side-price">—</strong><span>USDT</span></div><div id="instrument-change" class="instrument-change">—</div><p id="instrument-status" class="open-label"><i></i> CONNECTING</p>
-          <div class="range"><div><span id="day-low">—</span><small>DAY'S RANGE</small><span id="day-high">—</span></div><div class="range-track"><i id="day-marker" style="left:50%"></i></div></div>
-          <div class="key-stats"><h3>Key stats</h3><dl><div><dt>24h Volume</dt><dd id="detail-volume">—</dd></div><div><dt>Market Cap</dt><dd>—</dd></div><div><dt>FDV</dt><dd>—</dd></div></dl></div>
         </section>
       </aside>
     </main>

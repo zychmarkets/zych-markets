@@ -230,3 +230,20 @@ body{font-size:13px}.topbar{height:50px}.brand-mark{width:29px;height:29px;font-
 .chart-container.alert-line-hover,.chart-container.alert-line-dragging{cursor:ns-resize}.chart-container.alert-line-dragging{user-select:none}
 .alert-sound-controls{flex-wrap:wrap}.push-notifications-toggle{flex:1 0 100%;width:100%;border:1px solid var(--border);background:transparent;color:var(--text-muted);font:inherit;font-size:10px;padding:5px 8px;border-radius:3px;white-space:nowrap}.push-notifications-toggle[data-push-status="on"]{color:var(--positive);border-color:color-mix(in srgb,var(--positive) 45%,var(--border))}.push-notifications-toggle[data-push-status="blocked"],.push-notifications-toggle[data-push-status="error"]{color:var(--negative)}.push-notifications-toggle:disabled{opacity:.55}
 @media(max-width:680px){.global-exchange-shell{display:none}}
+
+/* Stage 2D.2: one instrument header, OHLC-only legend, Watchlist-only sidebar. */
+.instrument-toolbar{grid-template-columns:minmax(0,1fr) auto;gap:10px;min-height:43px;padding-block:5px}
+.instrument-quote{justify-content:flex-start;gap:10px}
+.primary-market-identity{display:flex;align-items:center;gap:7px;min-width:124px;padding-right:10px;border-right:1px solid var(--border-subtle)}
+.primary-market-identity>span:nth-child(2){display:grid;line-height:1.12}
+.primary-market-identity>span:nth-child(2)>strong{color:var(--text-primary);font-size:11px;font-weight:600;white-space:nowrap}
+.primary-market-identity>span:nth-child(2)>small{color:var(--text-muted);font-size:8px}
+.primary-market-identity .favorite-button{margin-left:2px;flex:0 0 auto}
+.quote-primary{min-width:72px}
+.chart-meta{min-height:27px;padding:5px 10px 0}
+.chart-meta>div{display:block}
+.market-sidebar{gap:0}
+.watchlist-panel{height:100%;display:flex;flex-direction:column}
+.watchlist-rows{max-height:none;flex:1;min-height:0}
+@media(max-width:900px){.watchlist-panel{height:auto}.watchlist-rows{max-height:350px}}
+@media(max-width:680px){.instrument-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto}.instrument-quote{display:flex;min-width:0;overflow:hidden}.primary-market-identity{min-width:0;padding-right:7px}.primary-market-identity>span:nth-child(2)>small{display:none}.primary-market-identity .coin-icon{display:none}.quote-primary{min-width:62px}.toolbar-stats{display:none}.chart-meta{min-height:27px;padding:5px 8px 0}}
