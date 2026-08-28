@@ -7,16 +7,20 @@ const normalized=(exchange,row,ticker,now)=>{const market={exchange,marketType:'
 
 class BinanceCatalogAdapter{
   constructor({restBase,fetchImpl=globalThis.fetch,now=Date.now}={}){this.id='binance';this.restBase=restBase||'https://api.binance.com/api/v3';this.fetchImpl=fetchImpl;this.now=now}
+  // Binance quoteVolume is the 24h turnover denominated in the quote asset.
   async load(signal){const [info,tickers]=await Promise.all([json(this.fetchImpl,`${this.restBase}/exchangeInfo`,signal),json(this.fetchImpl,`${this.restBase}/ticker/24hr`,signal)]),bySymbol=new Map((tickers||[]).map(row=>[row.symbol,{quoteVolume24h:row.quoteVolume,bid:row.bidPrice,ask:row.askPrice}])),now=this.now();return(info.symbols||[]).filter(row=>row.isSpotTradingAllowed!==false).map(row=>normalized(this.id,{symbol:row.symbol,baseAsset:row.baseAsset,quoteAsset:row.quoteAsset,status:row.status},bySymbol.get(row.symbol),now))}
 }
 class BybitCatalogAdapter{
   constructor({restBase,fetchImpl=globalThis.fetch,now=Date.now}={}){this.id='bybit';this.restBase=restBase||'https://api.bybit.com/v5/market';this.fetchImpl=fetchImpl;this.now=now}
   unwrap(value){if(Number(value?.retCode)!==0||!value?.result)throw new Error(`Bybit API ${value?.retCode??'invalid'}`);return value.result}
-  async load(signal){const [info,tickers]=await Promise.all([json(this.fetchImpl,`${this.restBase}/instruments-info?category=spot&limit=1000`,signal),json(this.fetchImpl,`${this.restBase}/tickers?category=spot`,signal)]),instruments=this.unwrap(info).list||[],bySymbol=new Map((this.unwrap(tickers).list||[]).map(row=>[row.symbol,{quoteVolume24h:row.turnover24h,bid:row.bid1Price,ask:row.ask1Price}])),now=this.now();return instruments.map(row=>normalized(this.id,{symbol:row.symbol,baseAsset:row.baseCoin,quoteAsset:row.quoteCoin,status:row.status},bySymbol.get(row.symbol),now))}
+  async instruments(signal){const rows=[],seen=new Set();let cursor='';do{const suffix=cursor?`&cursor=${encodeURIComponent(cursor)}`:'',page=this.unwrap(await json(this.fetchImpl,`${this.restBase}/instruments-info?category=spot&limit=1000${suffix}`,signal));rows.push(...(page.list||[]));const next=String(page.nextPageCursor||'');if(!next)break;if(seen.has(next))throw new Error('Bybit pagination cursor loop');seen.add(next);cursor=next}while(true);return rows}
+  // Bybit turnover24h is quote-currency turnover (unlike volume24h, which is base units).
+  async load(signal){const [instruments,tickers]=await Promise.all([this.instruments(signal),json(this.fetchImpl,`${this.restBase}/tickers?category=spot`,signal)]),bySymbol=new Map((this.unwrap(tickers).list||[]).map(row=>[row.symbol,{quoteVolume24h:row.turnover24h,bid:row.bid1Price,ask:row.ask1Price}])),now=this.now();return instruments.map(row=>normalized(this.id,{symbol:row.symbol,baseAsset:row.baseCoin,quoteAsset:row.quoteCoin,status:row.status},bySymbol.get(row.symbol),now))}
 }
 class OkxCatalogAdapter{
   constructor({restBase,fetchImpl=globalThis.fetch,now=Date.now}={}){this.id='okx';this.restBase=restBase||'https://www.okx.com/api/v5';this.fetchImpl=fetchImpl;this.now=now}
   unwrap(value){if(String(value?.code)!=='0'||!Array.isArray(value?.data))throw new Error(`OKX API ${value?.code??'invalid'}`);return value.data}
+  // For Spot, OKX volCcy24h is volume in quote currency; vol24h is base units.
   async load(signal){const [info,tickers]=await Promise.all([json(this.fetchImpl,`${this.restBase}/public/instruments?instType=SPOT`,signal),json(this.fetchImpl,`${this.restBase}/market/tickers?instType=SPOT`,signal)]),instruments=this.unwrap(info),bySymbol=new Map(this.unwrap(tickers).map(row=>[row.instId,{quoteVolume24h:row.volCcy24h,bid:row.bidPx,ask:row.askPx}])),now=this.now();return instruments.map(row=>normalized(this.id,{symbol:row.instId,baseAsset:row.baseCcy,quoteAsset:row.quoteCcy,status:row.state},bySymbol.get(row.instId),now))}
 }
 module.exports={BinanceCatalogAdapter,BybitCatalogAdapter,OkxCatalogAdapter,spreadPct,normalized};

@@ -6,6 +6,7 @@ const path = require('node:path');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 const send = (res, status, value) => { const body = JSON.stringify(value); res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body), 'cache-control': 'no-store' }); res.end(body); };
 const error = (res, status, code, message) => send(res, status, { error: { code, message } });
+const validRadarFilter=(key,value)=>({exchange:/^(binance|bybit|okx)$/,marketType:/^(spot|perpetual)$/,symbol:/^[A-Z0-9-]{1,30}$/,eventType:/^[A-Z0-9_-]{1,60}$/,timeframe:/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/}[key].test(value));
 
 async function body(req, limit = 32768) {
   const chunks = []; let size = 0;
@@ -14,7 +15,7 @@ async function body(req, limit = 32768) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { const failure = new Error('Malformed JSON'); failure.code = 'MALFORMED_JSON'; throw failure; }
 }
 
-function createHttpServer({ runner, storage, notifier, universe = null, config, logger, startedAt = Date.now() }) {
+function createHttpServer({ runner, storage, notifier, universe = null, eventStore = null, eventPipeline = null, config, logger, startedAt = Date.now() }) {
   let accepting = true;
   const server = http.createServer(async (req, res) => {
     res.setTimeout(15000);
@@ -23,8 +24,10 @@ function createHttpServer({ runner, storage, notifier, universe = null, config, 
       if (pathname.startsWith('/api/')) {
         if (!accepting) return error(res, 503, 'SHUTTING_DOWN', 'Server is shutting down.');
         if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, { status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } });
-        if (pathname === '/api/radar/universe' && req.method === 'GET') return universe ? send(res, 200, universe.getSnapshot({ includeExcluded:url.searchParams.get('includeExcluded')==='true' })) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
-        if (pathname === '/api/radar/universe/health' && req.method === 'GET') return universe ? send(res,200,universe.health()) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
+        if (pathname === '/api/radar/universe' && req.method === 'GET') {if(!universe)return error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');const diagnostics=url.searchParams.get('diagnostics')==='true',includeExcluded=url.searchParams.get('includeExcluded')==='true';if(includeExcluded&&!diagnostics)return error(res,400,'DIAGNOSTICS_REQUIRED','Excluded markets require diagnostics=true.');const limit=Number(url.searchParams.get('excludedLimit')||100),offset=Number(url.searchParams.get('excludedOffset')||0);if(!Number.isInteger(limit)||limit<1||limit>200||!Number.isInteger(offset)||offset<0)return error(res,400,'INVALID_PAGINATION','excludedLimit must be 1..200 and excludedOffset must be non-negative.');return send(res,200,universe.getSnapshot({includeExcluded,excludedLimit:limit,excludedOffset:offset}))}
+        if (pathname === '/api/radar/universe/health' && req.method === 'GET') return universe ? send(res,200,{...universe.health(),eventPipeline:eventPipeline?.diagnostics()||null}) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
+        if (pathname === '/api/radar/events' && req.method === 'GET') {if(!eventStore)return error(res,503,'RADAR_EVENTS_UNAVAILABLE','Radar event store is unavailable.');const limit=Number(url.searchParams.get('limit')||50);if(!Number.isInteger(limit)||limit<1||limit>200)return error(res,400,'INVALID_LIMIT','limit must be an integer from 1 to 200.');const filters={limit};for(const key of ['exchange','marketType','symbol','eventType','timeframe'])if(url.searchParams.has(key)){const value=url.searchParams.get(key);if(!validRadarFilter(key,value))return error(res,400,'INVALID_FILTER',`Invalid ${key}.`);filters[key]=value}return send(res,200,{events:eventStore.listRecent(filters),limit})}
+        const radarEventMatch=pathname.match(/^\/api\/radar\/events\/([A-Za-z0-9:_-]{1,120})$/);if(radarEventMatch&&req.method==='GET'){const radarEvent=eventStore?.getById(radarEventMatch[1]);return radarEvent?send(res,200,{event:radarEvent}):error(res,404,'EVENT_NOT_FOUND','Unified event not found.')}
         if (pathname === '/api/push/public-key' && req.method === 'GET') return config.vapidPublicKey ? send(res, 200, { publicKey: config.vapidPublicKey }) : error(res, 503, 'PUSH_NOT_CONFIGURED', 'Web Push is not configured.');
         if (pathname === '/api/push/status' && req.method === 'GET') return send(res, 200, notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 });
         if (pathname === '/api/push/subscribe' && req.method === 'POST') { const record = await storage.savePushSubscription(await body(req)); if (!record) return error(res, 422, 'INVALID_SUBSCRIPTION', 'Invalid push subscription.'); logger.info('push_subscription_created', { endpointHost: new URL(record.endpoint).host }); return send(res, 201, { subscribed: true }); }

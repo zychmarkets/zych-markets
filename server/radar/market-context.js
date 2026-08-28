@@ -1,0 +1,9 @@
+'use strict';
+const {validateMarket}=require('./event-schema.js');
+function marketContext(value){const market={marketId:value?.marketId,exchange:value?.exchange,marketType:value?.marketType,symbol:value?.symbol,baseAsset:value?.baseAsset||symbolBase(value),quoteAsset:value?.quoteAsset||symbolQuote(value)};const errors=validateMarket(market),stamp=value?.eventTimestamp==null?null:Number(value.eventTimestamp);if(value?.timeframe&&!/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/.test(value.timeframe))errors.push('invalid timeframe');if(stamp!==null&&!(Number.isFinite(stamp)&&stamp>0))errors.push('invalid eventTimestamp');if(errors.length){const error=new Error(`Invalid MarketContext: ${errors.join(', ')}`);error.code='INVALID_MARKET_CONTEXT';throw error}return{marketId:market.marketId,exchange:market.exchange,marketType:market.marketType,symbol:market.symbol,timeframe:value.timeframe||null,eventTimestamp:stamp}}
+const symbolQuote=value=>String(value?.symbol||'').endsWith('-USDT')?'USDT':String(value?.symbol||'').endsWith('USDT')?'USDT':'';
+const symbolBase=value=>String(value?.symbol||'').replace(/-?USDT$/,'');
+function resolveUnifiedEvent(store,eventId){const event=store.getById(eventId);if(!event){const error=new Error('Unified event not found');error.code='EVENT_NOT_FOUND';throw error}return marketContext(event.deepLink||{...event.market,timeframe:event.timeframe,eventTimestamp:event.eventTimestamp})}
+function triggerContext(trigger){return marketContext({marketId:typedTriggerId(trigger),exchange:trigger.exchange,marketType:trigger.marketType||'spot',symbol:trigger.symbol,baseAsset:trigger.baseAsset||trigger.asset,quoteAsset:trigger.quoteAsset,timeframe:trigger.timeframe,eventTimestamp:trigger.triggeredAt||trigger.timestamp})}
+const typedTriggerId=trigger=>String(trigger.marketId||'').split(':').length===2?`${trigger.exchange}:spot:${trigger.symbol}`:trigger.marketId;
+module.exports={marketContext,resolveUnifiedEvent,triggerContext};

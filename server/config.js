@@ -24,6 +24,9 @@ function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
     okxWsBusinessBase: env.OKX_WS_BUSINESS_BASE || 'wss://ws.okx.com:8443/ws/v5/business',
     radarEnabled: env.RADAR_UNIVERSE_ENABLED !== 'false',
     radarRefreshIntervalMs: integer(env.RADAR_UNIVERSE_REFRESH_MS, 60000, 5000, 3600000),
+    radarRequestTimeoutMs: integer(env.RADAR_REQUEST_TIMEOUT_MS, 10000, 100, 120000),
+    radarEventStoreLimit: integer(env.RADAR_EVENT_STORE_LIMIT, 500, 10, 10000),
+    radarEventQueueLimit: integer(env.RADAR_EVENT_QUEUE_LIMIT, 1000, 10, 10000),
     universePolicy: Object.freeze({
       version: env.RADAR_POLICY_VERSION || 'universe-v1',
       marketType: 'spot',

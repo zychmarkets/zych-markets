@@ -9,6 +9,7 @@ const { JsonStorageAdapter } = require('../server/storage/json-storage.js');
 const { ServerAlertRunner } = require('../server/alert-runner.js');
 const { createServerApp } = require('../server/app.js');
 const { BinanceMarketTransport } = require('../server/transports/binance-market-transport.js');
+const { createUnifiedEvent } = require('../server/radar/event-schema.js');
 
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
 class FakeTransport {
@@ -66,11 +67,12 @@ test('pause preserves identity and price, suppresses triggers, and resume restor
 test('HTTP API health, CRUD, validation and malformed payload', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'zych-api-')), transport = new FakeTransport();
   const config = { host: '127.0.0.1', port: 0, dataDir: directory, historyLimit: 500, logLevel: 'error', root: path.resolve(__dirname, '..'), binanceRestBase: '', binanceWsBase: '' };
-  const universe={stopped:false,async initialize(){},getSnapshot:({includeExcluded}={})=>({generatedAt:1,policyVersion:'test',markets:[{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',eligibility:{eligible:true,liquidityTier:'A',reasons:['ACTIVE_MARKET']}}],...(includeExcluded?{excludedMarkets:[]}:{}),coverage:{status:'HEALTHY'}}),health:()=>({generatedAt:1,policyVersion:'test',coverage:{status:'HEALTHY'}}),async stop(){this.stopped=true}};
+  const universe={stopped:false,async initialize(){},getSnapshot:({includeExcluded,excludedLimit=100,excludedOffset=0}={})=>({generatedAt:1,policyVersion:'test',markets:[{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',eligibility:{eligible:true,liquidityTier:'A',reasons:['ACTIVE_MARKET']}}],...(includeExcluded?{excludedMarkets:[],excludedPagination:{offset:excludedOffset,limit:excludedLimit,total:0}}:{}),coverage:{status:'HEALTHY'}}),health:()=>({generatedAt:1,policyVersion:'test',coverage:{status:'HEALTHY'}}),async stop(){this.stopped=true}};
   const app = await createServerApp({ config, logger: silent, transport, universe }); const address = await app.listen(), base = `http://127.0.0.1:${address.port}/api`;
   let response = await fetch(`${base}/health`); assert.equal(response.status, 200); assert.equal((await response.json()).status, 'ok');
-  response=await fetch(`${base}/radar/universe?includeExcluded=true`);assert.equal(response.status,200);const radar=await response.json();assert.equal(radar.markets[0].marketType,'spot');assert.deepEqual(radar.excludedMarkets,[]);
+  response=await fetch(`${base}/radar/universe?includeExcluded=true`);assert.equal(response.status,400);response=await fetch(`${base}/radar/universe?diagnostics=true&includeExcluded=true&excludedLimit=20`);assert.equal(response.status,200);const radar=await response.json();assert.equal(radar.markets[0].marketType,'spot');assert.deepEqual(radar.excludedMarkets,[]);assert.equal(radar.excludedPagination.limit,20);
   response=await fetch(`${base}/radar/universe/health`);assert.equal((await response.json()).coverage.status,'HEALTHY');
+  const radarEvent=createUnifiedEvent({detectorId:'test',detectorVersion:'1',eventType:'TEST',market:{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},timeframe:'1h',eventTimestamp:Date.now(),observedAt:Date.now(),deepLink:{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',timeframe:'1h',eventTimestamp:Date.now()}},{id:'api-event'});app.eventStore.add(radarEvent);response=await fetch(`${base}/radar/events?exchange=binance&limit=1`);assert.equal((await response.json()).events[0].eventId,'api-event');assert.equal((await fetch(`${base}/radar/events?limit=9999`)).status,400);assert.equal((await fetch(`${base}/radar/events/api-event`)).status,200);assert.equal((await fetch(`${base}/radar/events/missing`)).status,404);
   response = await fetch(`${base}/alerts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(definition()) }); assert.equal(response.status, 201); const id = (await response.json()).alert.id;
   response = await fetch(`${base}/alerts`); assert.equal((await response.json()).alerts.length, 1);
   response = await fetch(`${base}/alerts/${id}/price`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: 123.45 }) }); assert.equal(response.status, 200); assert.equal((await response.json()).alert.condition.value, 123.45);

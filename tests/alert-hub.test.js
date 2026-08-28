@@ -14,5 +14,5 @@ assert.deepEqual(hub.visibleAlerts(alerts,'paused').map(alert=>alert.id),['bybit
 assert.equal(new Set(hub.visibleAlerts(alerts).map(alert=>alert.id)).size,4);
 assert.deepEqual(hub.visibleAlerts(alerts).filter(alert=>alert.symbol.includes('BTC')).map(alert=>alert.marketId),['okx:BTC-USDT','binance:BTCUSDT','binance:BTCUSDT','bybit:BTCUSDT']);
 assert.equal(hub.marketText(alerts[0]),'BINANCE · BTC/USDT');assert.equal(hub.marketText(alerts[3]),'OKX · BTC/USDT');
-assert.deepEqual(hub.openContext(alerts[2]),{id:'bybit',exchange:'bybit',marketId:'bybit:BTCUSDT',symbol:'BTCUSDT',timeframe:''});assert.deepEqual(hub.openContext(alerts[3]),{id:'okx',exchange:'okx',marketId:'okx:BTC-USDT',symbol:'BTC-USDT',timeframe:''});
+assert.deepEqual(hub.openContext(alerts[2]),{id:'bybit',exchange:'bybit',marketType:'spot',marketId:'bybit:spot:BTCUSDT',symbol:'BTCUSDT',timeframe:'',eventTimestamp:null});assert.deepEqual(hub.openContext(alerts[3]),{id:'okx',exchange:'okx',marketType:'spot',marketId:'okx:spot:BTC-USDT',symbol:'BTC-USDT',timeframe:'',eventTimestamp:null});
 console.log('alert hub tests: PASS');

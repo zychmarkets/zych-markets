@@ -1,0 +1,6 @@
+'use strict';
+const {performance}=require('node:perf_hooks');
+const {createUnifiedEvent}=require('../server/radar/event-schema.js');
+const {UnifiedEventStore}=require('../server/radar/event-store.js');
+function run(count){global.gc?.();const before=process.memoryUsage().heapUsed,start=performance.now(),store=new UnifiedEventStore({limit:500});for(let i=0;i<count;i++)store.add(createUnifiedEvent({detectorId:'bench',detectorVersion:'0',eventType:'TEST',market:{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},timeframe:'1h',eventTimestamp:1700000000000+i,observedAt:1700000000000+i,metrics:{price:100+i},deepLink:{marketId:'binance:spot:BTCUSDT',exchange:'binance',marketType:'spot',symbol:'BTCUSDT',timeframe:'1h',eventTimestamp:1700000000000+i}},{id:`bench-${i}`,now:1700000000000+i}));const elapsed=performance.now()-start,payload=Buffer.byteLength(JSON.stringify({events:store.listRecent({limit:200})}));return{events:count,elapsedMs:Number(elapsed.toFixed(3)),eventsPerSecond:Math.round(count/(elapsed/1000)),retained:store.size,heapDeltaBytes:process.memoryUsage().heapUsed-before,recentApiBytes:payload}}
+console.log(JSON.stringify({label:'development in-process benchmark; not production throughput',results:[100,1000,10000].map(run)},null,2));
