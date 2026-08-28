@@ -15,6 +15,13 @@ const { MarketCatalogService } = require('./radar/market-catalog-service.js');
 const { MarketUniverseService } = require('./radar/market-universe-service.js');
 const { UnifiedEventStore } = require('./radar/event-store.js');
 const { RadarEventPipeline } = require('./radar/event-pipeline.js');
+const { MarketStateStore } = require('./radar/market-state-store.js');
+const { CandleHistoryAdapter } = require('./radar/candle-history-adapters.js');
+const { CandleStreamAdapter } = require('./radar/candle-stream-adapters.js');
+const { RecoveryCoordinator } = require('./radar/recovery-coordinator.js');
+const { PriceMomentumDetector } = require('./radar/detectors/price-momentum.js');
+const { DetectorRegistry } = require('./radar/detector-registry.js');
+const { IngestionSupervisor } = require('./radar/ingestion-supervisor.js');
 
 async function createServerApp(options = {}) {
   const config = options.config || loadConfig(), logger = options.logger || createLogger(config.logLevel);
@@ -25,12 +32,14 @@ async function createServerApp(options = {}) {
   const universe = options.universe || (config.radarEnabled === true ? new MarketUniverseService({ catalog:new MarketCatalogService({ logger,requestTimeoutMs:config.radarRequestTimeoutMs, adapters:[new BinanceCatalogAdapter({restBase:config.binanceRestBase}),new BybitCatalogAdapter({restBase:config.bybitRestBase}),new OkxCatalogAdapter({restBase:config.okxRestBase})] }), policy:config.universePolicy, refreshIntervalMs:config.radarRefreshIntervalMs, logger }) : null);
   if(universe)await universe.initialize();
   const eventStore=options.eventStore||new UnifiedEventStore({limit:config.radarEventStoreLimit||500}),eventPipeline=options.eventPipeline||new RadarEventPipeline({store:eventStore,queueLimit:config.radarEventQueueLimit||1000,logger});
-  const httpServer = createHttpServer({ runner, storage, notifier, universe, eventStore, eventPipeline, config, logger });
+  let radar=options.radar||null;
+  if(!radar&&universe&&config.radarIngestionEnabled===true){const momentum=new PriceMomentumDetector({...config.radarMomentum,timeframes:config.radarTimeframes}),store=new MarketStateStore({historyLimit:config.radarStateHistoryLimit,minimumLookback:config.radarMomentum.minimumWarmup}),history={binance:new CandleHistoryAdapter({exchange:'binance',restBase:config.binanceRestBase}),bybit:new CandleHistoryAdapter({exchange:'bybit',restBase:config.bybitRestBase}),okx:new CandleHistoryAdapter({exchange:'okx',restBase:config.okxRestBase})},streams={binance:new CandleStreamAdapter({exchange:'binance',wsBase:config.binanceWsBase,logger}),bybit:new CandleStreamAdapter({exchange:'bybit',wsBase:config.bybitWsBase,logger}),okx:new CandleStreamAdapter({exchange:'okx',wsBase:config.okxWsBusinessBase,logger})},recovery=new RecoveryCoordinator({store,adapters:history,concurrency:config.radarRecoveryConcurrency,retries:config.radarRecoveryRetries,requestTimeoutMs:config.radarRequestTimeoutMs,logger}),registry=new DetectorRegistry({detectors:[momentum],pipeline:eventPipeline,logger});radar=new IngestionSupervisor({universe,store,recovery,registry,streams,timeframes:config.radarTimeframes,staleCheckMs:config.radarStaleCheckMs,logger});await radar.start()}
+  const httpServer = createHttpServer({ runner, storage, notifier, universe, eventStore, eventPipeline, radar, config, logger });
   let stopped = false;
   return {
-    config, logger, storage, transport, runner, universe, eventStore, eventPipeline, server: httpServer.server,
+    config, logger, storage, transport, runner, universe, eventStore, eventPipeline, radar, server: httpServer.server,
     async listen() { await new Promise((resolve, reject) => { httpServer.server.once('error', reject); httpServer.server.listen(config.port, config.host, resolve); }); const address = httpServer.server.address(); logger.info('server_started', { host: config.host, port: address.port }); return address; },
-    async stop() { if (stopped) return; stopped = true; httpServer.stopAccepting(); await new Promise(resolve => httpServer.server.listening ? httpServer.server.close(resolve) : resolve()); await universe?.stop(); await eventPipeline.stop(); eventStore.stop(); await runner.stop(); logger.info('server_stopped'); }
+    async stop() { if (stopped) return; stopped = true; httpServer.stopAccepting(); await new Promise(resolve => httpServer.server.listening ? httpServer.server.close(resolve) : resolve()); await radar?.stop(); await universe?.stop(); await eventPipeline.stop(); eventStore.stop(); await runner.stop(); logger.info('server_stopped'); }
   };
 }
 module.exports = { createServerApp };

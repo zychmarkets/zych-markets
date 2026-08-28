@@ -1,0 +1,11 @@
+'use strict';
+const {normalizeBinanceCandle,normalizeBybitCandle,normalizeOkxCandle}=require('./candle-adapters.js');
+const maps={bybit:{'1m':'1','5m':'5','15m':'15'},okx:{'1m':'1m','5m':'5m','15m':'15m'}};
+async function request(fetchImpl,url,signal){const response=await fetchImpl(url,{signal});if(!response.ok)throw new Error(`Candle history HTTP ${response.status}`);return response.json()}
+class CandleHistoryAdapter{
+  constructor({exchange,restBase,fetchImpl=globalThis.fetch,now=Date.now}={}){this.exchange=exchange;this.restBase=restBase;this.fetchImpl=fetchImpl;this.now=now}
+  async fetch(market,timeframe,{from,to,limit=300,signal}={}){let rows;if(this.exchange==='binance'){const query=new URLSearchParams({symbol:market.symbol,interval:timeframe,limit:String(limit)});if(from!=null)query.set('startTime',String(from));if(to!=null)query.set('endTime',String(to));rows=await request(this.fetchImpl,`${this.restBase}/klines?${query}`,signal);return rows.map(row=>normalizeBinanceCandle(market,timeframe,row,{now:this.now(),closed:true})).sort((a,b)=>a.openTime-b.openTime)}
+    if(this.exchange==='bybit'){const query=new URLSearchParams({category:'spot',symbol:market.symbol,interval:maps.bybit[timeframe],limit:String(Math.min(limit,1000))});if(from!=null)query.set('start',String(from));if(to!=null)query.set('end',String(to));const value=await request(this.fetchImpl,`${this.restBase}/kline?${query}`,signal);if(Number(value.retCode)!==0)throw new Error(`Bybit API ${value.retCode}`);rows=value.result?.list||[];return rows.map(row=>normalizeBybitCandle(market,timeframe,row,{now:this.now(),closed:true})).sort((a,b)=>a.openTime-b.openTime)}
+    const query=new URLSearchParams({instId:market.symbol,bar:maps.okx[timeframe],limit:String(Math.min(limit,300))});if(to!=null)query.set('after',String(Number(to)+1));const value=await request(this.fetchImpl,`${this.restBase}/market/history-candles?${query}`,signal);if(String(value.code)!=='0')throw new Error(`OKX API ${value.code}`);rows=value.data||[];return rows.map(row=>normalizeOkxCandle(market,timeframe,[...row.slice(0,8),'1'],{now:this.now()})).filter(row=>(from==null||row.openTime>=from)&&(to==null||row.openTime<=to)).sort((a,b)=>a.openTime-b.openTime)}
+}
+module.exports={CandleHistoryAdapter};

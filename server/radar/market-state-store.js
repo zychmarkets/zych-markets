@@ -1,0 +1,22 @@
+'use strict';
+const {INTERVAL_MS}=require('./candle.js');
+const quality=['COMPLETE','WARMING_UP','STALE','DEGRADED','RECOVERING'];
+class MarketStateStore{
+  constructor({historyLimit=300,minimumLookback=65,now=Date.now}={}){this.historyLimit=historyLimit;this.minimumLookback=minimumLookback;this.now=now;this.states=new Map();this.stopped=false}
+  key(marketId,timeframe){return `${marketId}|${timeframe}`}
+  initialize(market,timeframe){if(this.stopped)throw new Error('MarketStateStore stopped');const key=this.key(market.marketId,timeframe);if(!this.states.has(key))this.states.set(key,{market:{...market},timeframe,candles:[],dataQuality:'WARMING_UP',continuityVerified:false,lastReceivedAt:null,lastEvaluatedOpenTime:null,error:null});return this.states.get(key)}
+  get(marketId,timeframe){return this.states.get(this.key(marketId,timeframe))||null}
+  append(market,timeframe,value){const state=this.initialize(market,timeframe),rows=state.candles,index=rows.findIndex(item=>item.openTime===value.openTime);if(index>=0){const prior=rows[index];if(prior.isClosed&&value.isClosed)return{status:'DUPLICATE',state,candle:prior};rows[index]=value;state.lastReceivedAt=value.receivedAt;return{status:'UPDATED',state,candle:value}}
+    const latest=rows.at(-1);if(latest&&value.openTime<latest.openTime){state.dataQuality='DEGRADED';state.continuityVerified=false;state.error='OUT_OF_ORDER';return{status:'OUT_OF_ORDER',state,candle:value}}
+    const interval=INTERVAL_MS[timeframe],missing=latest?Math.max(0,Math.round((value.openTime-latest.openTime)/interval)-1):0;rows.push(value);if(rows.length>this.historyLimit)rows.splice(0,rows.length-this.historyLimit);state.lastReceivedAt=value.receivedAt;if(missing){state.dataQuality='RECOVERING';state.continuityVerified=false;state.error='GAP';return{status:'GAP',missing,from:latest.openTime+interval,to:value.openTime-interval,state,candle:value}}
+    this.verify(state);return{status:'APPENDED',missing:0,state,candle:value}}
+  load(market,timeframe,candles){const state=this.initialize(market,timeframe),merged=new Map(state.candles.map(row=>[row.openTime,row]));candles.forEach(row=>merged.set(row.openTime,row));state.candles=[...merged.values()].sort((a,b)=>a.openTime-b.openTime).slice(-this.historyLimit);state.lastReceivedAt=state.candles.at(-1)?.receivedAt||state.lastReceivedAt;this.verify(state);return state}
+  verify(state){const interval=INTERVAL_MS[state.timeframe];state.continuityVerified=state.candles.every((row,index)=>!index||row.openTime-state.candles[index-1].openTime===interval);if(!state.continuityVerified){state.dataQuality='DEGRADED';state.error='DISCONTINUITY'}else if(state.candles.length<this.minimumLookback){state.dataQuality='WARMING_UP';state.error=null}else{state.dataQuality='COMPLETE';state.error=null}return state.continuityVerified}
+  mark(marketId,timeframe,dataQuality,error=null){if(!quality.includes(dataQuality))throw new Error('Invalid data quality');const state=this.get(marketId,timeframe);if(state){state.dataQuality=dataQuality;state.error=error;if(dataQuality!=='COMPLETE')state.continuityVerified=false}return state}
+  markStale(staleAfterMs,timeframe=null){const now=this.now();for(const state of this.states.values())if((!timeframe||state.timeframe===timeframe)&&state.lastReceivedAt&&now-state.lastReceivedAt>staleAfterMs&&state.dataQuality==='COMPLETE'){state.dataQuality='STALE';state.continuityVerified=false}}
+  removeMarket(marketId){for(const [key,state]of this.states)if(state.market.marketId===marketId)this.states.delete(key)}
+  clearExchange(exchange){for(const [key,state]of this.states)if(state.market.exchange===exchange)this.states.delete(key)}
+  diagnostics(){const counts={COMPLETE:0,WARMING_UP:0,STALE:0,DEGRADED:0,RECOVERING:0};for(const state of this.states.values())counts[state.dataQuality]=(counts[state.dataQuality]||0)+1;return{totalStateEntries:this.states.size,...counts}}
+  stop(){this.stopped=true;this.states.clear()}
+}
+module.exports={MarketStateStore};
