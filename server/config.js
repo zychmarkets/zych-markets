@@ -34,6 +34,7 @@ function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
     radarRecoveryRetries: integer(env.RADAR_RECOVERY_RETRIES, 2, 0, 5),
     radarStaleCheckMs: integer(env.RADAR_STALE_CHECK_MS, 30000, 1000, 300000),
     radarMomentum: Object.freeze({enabled:env.RADAR_PRICE_MOMENTUM_ENABLED!=='false',signalWindow:integer(env.RADAR_MOMENTUM_SIGNAL_WINDOW,3,1,20),baselineWindow:integer(env.RADAR_MOMENTUM_BASELINE_WINDOW,60,20,500),minimumWarmup:integer(env.RADAR_MOMENTUM_MINIMUM_WARMUP,65,25,1000),threshold:number(env.RADAR_MOMENTUM_Z_THRESHOLD,3,0.5)}),
+    radarVolumeAnomaly: Object.freeze({enabled:env.RADAR_VOLUME_ANOMALY_ENABLED!=='false',timeframes:Object.freeze(list(env.RADAR_VOLUME_ANOMALY_TIMEFRAMES,'1m,5m,15m').map(item=>item.toLowerCase()).filter(item=>['1m','5m','15m'].includes(item))),baselineWindow:integer(env.RADAR_VOLUME_BASELINE_WINDOW,60,20,500),minimumRelativeVolume:number(env.RADAR_VOLUME_MIN_RELATIVE_VOLUME,2,1),minimumZScore:number(env.RADAR_VOLUME_MIN_ZSCORE,3,0.5)}),
     universePolicy: Object.freeze({
       version: env.RADAR_POLICY_VERSION || 'universe-v1',
       marketType: 'spot',

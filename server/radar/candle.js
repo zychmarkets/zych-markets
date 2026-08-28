@@ -1,5 +1,5 @@
 'use strict';
 const INTERVAL_MS=Object.freeze({'1m':60000,'5m':300000,'15m':900000});
-const finite=value=>{const number=Number(value);return Number.isFinite(number)?number:null};
+const finite=value=>{if(value==null||value==='')return null;const number=Number(value);return Number.isFinite(number)?number:null};
 function candle(value){const result={marketId:value.marketId,exchange:value.exchange,marketType:value.marketType,symbol:value.symbol,timeframe:value.timeframe,openTime:finite(value.openTime),closeTime:finite(value.closeTime),open:finite(value.open),high:finite(value.high),low:finite(value.low),close:finite(value.close),volume:finite(value.volume),quoteVolume:finite(value.quoteVolume),isClosed:Boolean(value.isClosed),sourceTimestamp:finite(value.sourceTimestamp),receivedAt:finite(value.receivedAt)};if(!result.marketId||!result.exchange||!result.marketType||!result.symbol||!INTERVAL_MS[result.timeframe]||result.openTime===null||result.closeTime===null||[result.open,result.high,result.low,result.close].some(item=>item===null))throw new Error('Invalid normalized candle');return Object.freeze(result)}
 module.exports={INTERVAL_MS,candle};
