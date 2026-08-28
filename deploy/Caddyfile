@@ -1,0 +1,22 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$ZYCH_HOSTNAME} {
+	encode zstd gzip
+
+	@internal_diagnostics path /api/radar/health
+	respond @internal_diagnostics 404
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:4178 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+	}
+}

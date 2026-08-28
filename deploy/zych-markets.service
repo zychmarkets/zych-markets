@@ -1,0 +1,28 @@
+[Unit]
+Description=ZYCH Markets backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zych
+Group=zych
+WorkingDirectory=/opt/zych-markets/current
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/zych-markets/zych.env
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=20s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zych-markets
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
