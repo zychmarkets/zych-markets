@@ -1,6 +1,8 @@
 'use strict';
 class HealthService {
-  constructor({ lifecycle, universe, radar, eventPipeline, now = Date.now, minimumCompleteRatio = .1, maximumHealthyAgeMs = 180000 } = {}) { Object.assign(this,{lifecycle,universe,radar,eventPipeline,now,minimumCompleteRatio,maximumHealthyAgeMs}); }
+  constructor({ lifecycle, universe, radar, eventPipeline, now = Date.now, minimumCompleteRatio = .1, maximumHealthyAgeMs = 180000 } = {}) { Object.assign(this,{lifecycle,universe,radar,eventPipeline,now,minimumCompleteRatio,maximumHealthyAgeMs});this.unsubscribe=null; }
+  start(){if(!this.unsubscribe)this.unsubscribe=this.radar?.subscribeState?.(()=>this.assess())||null;return this.assess()}
+  stop(){this.unsubscribe?.();this.unsubscribe=null}
   assess() {
     const current=this.lifecycle.snapshot();
     if (['STARTING','STOPPING','STOPPED'].includes(current.state)) return { ready:false, lifecycle:current.state, reasonCodes:current.reasonCodes.length?current.reasonCodes:[`APPLICATION_${current.state}`] };
@@ -13,7 +15,7 @@ class HealthService {
     const degraded=healthyExchanges<(coverage?.expectedExchanges?.length||healthyExchanges)||complete<total;
     return this.update(true,degraded?['PARTIAL_PROCESSING_AVAILABLE']:[]);
   }
-  update(ready,reasonCodes){this.lifecycle.transition(ready?(reasonCodes.length?'DEGRADED':'READY'):'WARMING_UP',reasonCodes);return{ready,lifecycle:this.lifecycle.state,reasonCodes:[...reasonCodes]}}
+  update(ready,reasonCodes){const state=ready?(reasonCodes.length?'DEGRADED':'READY'):'WARMING_UP',current=this.lifecycle.snapshot(),unchanged=current.state===state&&current.reasonCodes.length===reasonCodes.length&&current.reasonCodes.every((value,index)=>value===reasonCodes[index]);if(!unchanged)this.lifecycle.transition(state,reasonCodes);return{ready,lifecycle:this.lifecycle.state,reasonCodes:[...reasonCodes]}}
   live(){return{status:'alive',timestamp:this.now()}}
   ready(){const assessment=this.assess();return{status:assessment.ready?'ready':'not_ready',lifecycle:assessment.lifecycle,reasonCodes:assessment.reasonCodes,timestamp:this.now()}}
 }
