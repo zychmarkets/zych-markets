@@ -11,69 +11,109 @@
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="ZYCH Markets home"><span class="brand-mark">Z</span><span class="brand-name">ZYCH</span></a>
-      <nav class="main-nav" aria-label="Primary navigation">
-        <a class="active" href="#terminal">Markets</a><a href="#watchlist">Scanner</a><a href="#">Signals</a><a href="#">News</a>
+      <nav class="main-nav" aria-label="Primary navigation" data-i18n-aria="nav.primary">
+        <a class="radar-nav active" href="#radar" data-workspace-view="radar"><span class="nav-icon" aria-hidden="true">◎</span><span data-i18n="nav.radar">Radar</span></a><a href="#watchlist" data-workspace-view="watchlist"><span class="nav-icon" aria-hidden="true">☆</span><span data-i18n="nav.watchlist">Watchlist</span></a><a href="#chart" data-workspace-view="chart"><span class="nav-icon" aria-hidden="true">▥</span><span data-i18n="nav.chart">Chart</span></a><a href="#markets" data-workspace-view="markets"><span class="nav-icon" aria-hidden="true">▥</span><span data-i18n="nav.markets">Markets</span></a>
       </nav>
       <div class="header-actions">
-        <div class="global-exchange-shell"><button id="active-exchange-selector" class="global-exchange-button" type="button" aria-haspopup="menu" aria-expanded="false"><i data-active-exchange-icon>B</i><strong data-active-exchange-label>Binance</strong><span>⌄</span></button><div id="active-exchange-menu" class="dropdown-menu global-exchange-menu" role="menu" hidden><button class="dropdown-item active" type="button" data-active-exchange-option="binance">Binance</button><button class="dropdown-item" type="button" data-active-exchange-option="bybit">Bybit</button><button class="dropdown-item" type="button" data-active-exchange-option="okx">OKX</button></div></div>
         <div class="search-shell">
-          <label class="coin-search"><span aria-hidden="true">⌕</span><input id="coin-search" type="search" placeholder="Search coin..." aria-label="Search coin" autocomplete="off" aria-expanded="false" aria-controls="search-results"><kbd>/</kbd></label>
+          <label class="coin-search"><span aria-hidden="true">⌕</span><input id="coin-search" type="search" placeholder="Search markets…" aria-label="Global symbol search" data-i18n-placeholder="search.placeholder" data-i18n-aria="search.label" autocomplete="off" aria-expanded="false" aria-controls="search-results"><kbd>/</kbd></label>
           <div id="search-results" class="dropdown-menu search-results" role="listbox" hidden></div>
         </div>
         <button id="mobile-search-button" class="square-button mobile-search-button" type="button" aria-label="Search coin">⌕</button>
         <button id="alerts-button" class="square-button" type="button" aria-label="Open Alert Hub" title="Alert Hub"><span aria-hidden="true">♢</span><span id="alerts-counter" class="notification-dot" hidden>0</span></button>
-        <button class="square-button settings-button" type="button" aria-label="Settings">⚙</button>
-        <button class="login-button" type="button">Login</button>
+        <div class="language-shell"><button id="language-button" class="language-button" type="button" aria-haspopup="menu" aria-expanded="false">EN <span>⌄</span></button><div id="language-menu" class="dropdown-menu language-menu" hidden><button type="button" data-language="system" data-i18n="common.system">System</button><button type="button" data-language="en">English</button><button type="button" data-language="ru">Русский</button></div></div>
+        <button id="settings-button" class="square-button settings-button" type="button" aria-label="Settings" data-i18n-aria="common.settings">⚙</button>
+        <button class="login-button" type="button" data-i18n="common.login">Login</button>
       </div>
     </header>
 
-    <section class="market-pulse" aria-label="Market Pulse">
+    <section id="markets" class="markets-page" aria-label="Market Pulse" hidden><header class="page-intro"><p>MARKETS</p><h1>Market Pulse</h1></header><div class="market-pulse">
       <article class="pulse-card" data-pulse-asset="BTC"><span class="coin-icon btc">₿</span><div class="pulse-copy"><b>BTC</b><strong>—</strong><span>—</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 25 L9 23 L15 24 L23 18 L31 20 L38 13 L45 16 L52 9 L59 11 L69 2"/></svg></article>
       <article class="pulse-card" data-pulse-asset="ETH"><span class="coin-icon eth">◆</span><div class="pulse-copy"><b>ETH</b><strong>—</strong><span>—</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 24 L8 22 L15 23 L22 18 L29 20 L37 13 L44 15 L52 8 L59 10 L69 2"/></svg></article>
       <article class="pulse-card" data-pulse-asset="SOL"><span class="coin-icon sol">S</span><div class="pulse-copy"><b>SOL</b><strong>—</strong><span>—</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 22 L10 24 L18 17 L26 19 L34 13 L42 16 L50 9 L58 12 L69 3"/></svg></article>
-      <article class="pulse-card demo-card" title="Demo data — external market-wide source not connected"><div class="pulse-copy"><b>TOTAL3 <small>DEMO</small></b><strong>$824.6B</strong><span class="positive">+1.43%</span></div><svg class="sparkline positive-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 25 L12 24 L22 19 L31 21 L40 14 L49 16 L58 8 L69 4"/></svg></article>
-      <article class="pulse-card demo-card" title="Demo data — external dominance source not connected"><div class="pulse-copy"><b>BTC.D <small>DEMO</small></b><strong>58.25%</strong><span class="negative">−0.27%</span></div><svg class="sparkline negative-line" viewBox="0 0 70 28" aria-hidden="true"><path d="M1 8 L9 7 L17 11 L25 9 L33 15 L42 13 L51 21 L60 18 L69 25"/></svg></article>
-      <article class="pulse-card status-card demo-card" title="Demo data — sentiment source not connected"><div class="pulse-copy"><b>Fear &amp; Greed <small>DEMO</small></b><strong>27</strong></div><span class="negative status-label">FEAR</span></article>
-      <article class="pulse-card status-card demo-card" title="Demo data — altseason source not connected"><div class="pulse-copy"><b>Altseason <small>DEMO</small></b><strong>41</strong></div><span class="neutral status-label">NEUTRAL</span></article>
+      <article class="pulse-card unavailable-card"><div class="pulse-copy"><b>Total Crypto Cap</b><strong>—</strong><span>Source not connected</span></div></article>
+      <article class="pulse-card unavailable-card"><div class="pulse-copy"><b>BTC Dominance</b><strong>—</strong><span>Source not connected</span></div></article>
+      <article class="pulse-card unavailable-card"><div class="pulse-copy"><b>Fear &amp; Greed</b><strong>—</strong><span>Source not connected</span></div></article>
+      <article class="pulse-card unavailable-card"><div class="pulse-copy"><b>Altseason Index</b><strong>—</strong><span>Source not connected</span></div></article>
+    </div></section>
+
+    <section id="radar" class="radar-page"><div class="radar-dashboard">
+      <header class="radar-intro"><div><h1 data-i18n="radar.marketTitle">Market Radar</h1><strong data-i18n="radar.taglineFull">ZYCH detects unusual market activity in real time.</strong></div><span class="radar-data-state"><i></i><span data-i18n="radar.preparingShort">Preparing</span></span></header>
+      <div class="radar-overview-grid">
+        <section class="radar-engine-card"><div class="radar-engine-copy"><h2 data-i18n="radar.engine">Radar Engine</h2><p><span data-i18n="radar.status">Status</span>: <b class="radar-preparing"><i></i><span data-i18n="radar.preparingShort">Preparing</span></b></p><span data-i18n="radar.engineDescription">The engine is being prepared to detect unusual market activity.</span><small data-i18n="radar.eventsWhenReady">Events will appear when verified Radar data is available.</small></div><div class="radar-inputs"><span data-i18n="radar.signalInputs">Signal inputs</span><ul><li>Momentum</li><li>Relative Volume</li><li>Volatility</li><li>Breakout Patterns</li></ul></div><div class="radar-scope" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div></section>
+        <section class="radar-metrics" aria-label="Radar metrics" data-i18n-aria="radar.metrics"><article><span class="metric-icon blue">ϟ</span><div><h3 data-i18n="radar.events">Radar Events</h3><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small></div></article><article><span class="metric-icon violet">◎</span><div><h3 data-i18n="radar.highScore">High Score</h3><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small></div></article><article><span class="metric-icon green">▥</span><div><h3 data-i18n="radar.dataQuality">Data Quality</h3><strong class="neutral-metric" data-i18n="radar.preparingShort">Preparing</strong><small data-i18n="radar.awaitingData">Awaiting verified data</small></div></article><article><span class="metric-icon blue">⌁</span><div><h3 data-i18n="radar.marketMode">Market Mode</h3><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small></div></article></section>
+      </div>
+      <section class="radar-status-strip"><article><span class="status-icon warning">☆</span><div><b data-i18n="watchlist.title">Watchlist</b><small><span id="radar-watchlist-count">0</span> <span data-i18n="radar.instruments">instruments</span></small></div></article><article><span class="status-icon warning">♢</span><div><b data-i18n="radar.activeAlerts">Active Alerts</b><small><span id="radar-alert-count">0</span> <span data-i18n="radar.alerts">alerts</span></small></div></article><article><span class="status-icon blue">ϟ</span><div><b data-i18n="radar.eventsToday">Radar Events Today</b><small>—</small></div></article><article><span class="status-icon green">▥</span><div><b data-i18n="radar.eventsHour">Events This Hour</b><small>—</small></div></article><article><span class="status-icon muted">◷</span><div><b data-i18n="radar.lastUpdate">Last Update</b><small data-i18n="common.unavailable">Unavailable</small></div></article><article><span class="status-icon green">⟳</span><div><b data-i18n="radar.autoRefresh">Auto Refresh</b><small data-i18n="radar.preparingShort">Preparing</small></div></article></section>
+      <div class="radar-main-grid">
+        <section class="radar-panel opportunities-panel"><header><h2 data-i18n="radar.topOpportunities">Top Radar Opportunities</h2><span class="info-dot" title="Radar opportunities">i</span></header><div class="radar-filterbar" role="toolbar" aria-label="Radar filters" data-i18n-aria="radar.filters"><div class="radar-filter-tabs"><button class="active" type="button" data-radar-filter="all" data-i18n="filter.all">All</button><button type="button" data-radar-filter="momentum">Momentum</button><button type="button" data-radar-filter="volume" data-i18n="filter.volume">Volume</button><button type="button" data-radar-filter="breakout">Breakout</button><button type="button" data-radar-filter="volatility">Volatility</button></div><label><span class="sr-only" data-i18n="filter.exchange">Exchange</span><select id="radar-exchange-filter"><option value="all" data-i18n="filter.allExchanges">All Exchanges</option><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option></select></label></div><div class="radar-table" role="table"><div class="radar-table-head" role="row"><span>#</span><span data-i18n="table.symbol">Symbol</span><span data-i18n="table.exchange">Exchange</span><span data-i18n="table.reason">Reason</span><span>ZYCH Score</span><span data-i18n="table.change24h">24h Change</span><span data-i18n="table.volume24h">Volume (24h)</span><span data-i18n="table.action">Action</span></div><div id="radar-opportunity-rows" class="radar-empty-state"><span class="empty-state-icon">⌁</span><strong data-i18n="radar.opportunitiesPreparing">Radar opportunities are being prepared</strong><p data-i18n="radar.noFabricatedData">Verified events will appear here without illustrative or estimated values.</p><button id="radar-quick-alert" type="button" data-i18n="radar.quickAlert">Quick Alert</button></div></div></section>
+        <section class="radar-panel recent-events-panel"><header><h2 data-i18n="radar.recentEvents">Recent Radar Events</h2><span data-i18n="common.unavailable">Unavailable</span></header><div id="radar-recent-events" class="recent-events-empty"><span class="empty-state-icon">ϟ</span><strong data-i18n="radar.eventsPreparing">Radar events are being prepared</strong><p data-i18n="radar.eventFeedDescription">The chronological event feed will appear when verified events are available.</p></div><footer data-i18n="radar.awaitingEngine">Awaiting Radar Engine</footer></section>
+      </div>
+      <div class="radar-context-grid"><section class="radar-panel sentiment-panel"><header><h2 data-i18n="radar.marketSentiment">Market Sentiment</h2></header><div><article><span data-i18n="radar.fearGreed">Fear &amp; Greed Index</span><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small><div class="gauge-placeholder"><i></i></div></article><article><span data-i18n="radar.altseason">Altseason Index</span><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small><div class="gauge-placeholder"><i></i></div></article><article class="trend-placeholder"><span data-i18n="radar.marketTrend">Market Trend (7D)</span><strong>—</strong><small data-i18n="radar.awaitingData">Awaiting verified data</small><div class="trend-lines" aria-hidden="true"></div></article></div></section><section class="radar-panel heatmap-panel"><header><h2 data-i18n="radar.heatmap">Heatmap (Top 20)</h2></header><div class="heatmap-unavailable"><span data-i18n="radar.heatmapUnavailable">Market heatmap is unavailable until verified context data is connected.</span></div><footer><i></i><span data-i18n="radar.verifiedSources">Verified sources only</span></footer></section></div>
+    </div></section>
+
+    <section id="watchlist-workspace" class="watchlist-workspace" hidden>
+      <header class="watchlist-page-header">
+        <div><h1><span data-i18n="watchlist.title">Watchlist</span> <span aria-hidden="true">☆</span></h1><p data-i18n="watchlist.subtitle">Track your favorite markets and spot opportunities in real time.</p></div>
+        <div class="watchlist-page-actions"><button id="add-watchlist-button" class="watchlist-primary-action" type="button"><span aria-hidden="true">＋</span><span data-i18n="watchlist.addSymbol">Add Symbol</span></button><button id="watchlist-import-button" type="button"><span aria-hidden="true">⇧</span><span data-i18n="watchlist.import">Import</span></button><button type="button" aria-label="More Watchlist actions" data-i18n-aria="watchlist.more">⋮</button></div>
+      </header>
+      <section class="watchlist-summary" aria-label="Watchlist summary" data-i18n-aria="watchlist.summary">
+        <article><span data-i18n="watchlist.totalInstruments">Total Instruments</span><strong id="watchlist-total">0</strong></article>
+        <article><span data-i18n="watchlist.gainers24h">Gainers (24h)</span><strong id="watchlist-gainers">—</strong></article>
+        <article><span data-i18n="watchlist.losers24h">Losers (24h)</span><strong id="watchlist-losers">—</strong></article>
+        <article><span data-i18n="watchlist.alertsActive">Alerts Active</span><strong id="watchlist-alerts">0</strong></article>
+        <article><span data-i18n="watchlist.radarEvents">Radar Events</span><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small></article>
+        <article><span data-i18n="watchlist.lastUpdate">Last Update</span><strong id="watchlist-updated">—</strong></article>
+      </section>
+      <section class="watchlist-shell">
+        <div class="watchlist-controls" role="toolbar" aria-label="Watchlist controls" data-i18n-aria="watchlist.controls">
+          <div class="watchlist-filter-tabs"><button class="active" type="button" data-watch-filter="all"><span data-i18n="filter.all">All</span> (<span data-watch-count>0</span>)</button><button type="button" data-watch-filter="spot"><span data-i18n="market.spot">Spot</span> (<span data-watch-spot-count>0</span>)</button><button type="button" data-watch-filter="perpetual" disabled><span data-i18n="market.perpetual">Perpetual</span> (0)</button></div>
+          <label><span class="sr-only" data-i18n="filter.exchange">Exchange</span><select id="watchlist-exchange-filter"><option value="all" data-i18n="filter.allExchanges">All Exchanges</option><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option></select></label>
+          <label><span class="sr-only" data-i18n="watchlist.sector">Sector</span><select id="watchlist-sector-filter" disabled><option data-i18n="watchlist.allSectors">All Sectors</option></select></label>
+          <div class="watchlist-control-spacer"></div>
+          <button type="button" data-watch-columns><span aria-hidden="true">▥</span> <span data-i18n="watchlist.columns">Columns</span></button>
+          <label><span class="sr-only" data-i18n="watchlist.sort">Sort</span><select id="watchlist-sort"><option value="default" data-i18n="watchlist.sortDefault">Sort: Default</option><option value="change-desc" data-i18n="watchlist.sortGainers">Sort: Gainers</option><option value="change-asc" data-i18n="watchlist.sortLosers">Sort: Losers</option></select></label>
+          <div class="watchlist-view-toggle" role="group" aria-label="Watchlist view" data-i18n-aria="watchlist.view"><button class="active" type="button" data-watch-view="table" aria-label="Table View" data-i18n-aria="watchlist.tableView">☷</button><button type="button" data-watch-view="tiles" aria-label="Compact Tile View" data-i18n-aria="watchlist.tileView">▦</button></div>
+        </div>
+        <div id="watchlist-table-view" class="watchlist-table-view">
+          <div class="watchlist-table-head" role="row"><span>☆</span><span data-i18n="table.symbol">Symbol</span><span data-i18n="table.exchange">Exchange</span><span data-i18n="watchlist.marketType">Market Type</span><span>ZYCH Score</span><span data-i18n="watchlist.price">Price</span><span data-i18n="table.change24h">24h Change</span><span data-i18n="watchlist.highLow">24h High / Low</span><span data-i18n="table.volume24h">Volume (24h)</span><span data-i18n="watchlist.marketCap">Market Cap</span><span data-i18n="watchlist.sector">Sector</span><span data-i18n="watchlist.actions">Actions</span></div>
+          <div id="watchlist-rows" class="watchlist-rows" aria-live="polite"></div>
+        </div>
+        <div id="watchlist-tile-view" class="watchlist-tile-view" hidden></div>
+        <footer class="watchlist-footer"><span id="watchlist-showing">—</span><span data-i18n="watchlist.personalizedRadar">Personalized Radar workspace</span></footer>
+      </section>
     </section>
 
-    <main id="terminal" class="terminal-layout">
-      <section class="chart-workspace" aria-label="Market chart">
-        <div class="instrument-toolbar">
-          <div class="instrument-quote">
-            <div class="primary-market-identity"><span id="toolbar-market-icon" class="coin-icon btc small">₿</span><span><strong data-pair-label>BTC / USDT</strong><small data-exchange-label>Binance</small></span><button id="favorite-button" class="favorite-button" type="button" aria-label="Add selected market to Watchlist" aria-pressed="true">★</button></div>
-            <div class="quote-primary"><strong id="current-price">—</strong></div>
-            <span id="toolbar-change" class="quote-change">— <small>24h</small></span>
-            <dl class="toolbar-stats" aria-label="24 hour market statistics">
-              <div><dt>High</dt><dd id="toolbar-high">—</dd></div>
-              <div><dt>Low</dt><dd id="toolbar-low">—</dd></div>
-              <div><dt>Volume</dt><dd id="toolbar-volume">—</dd></div>
-            </dl>
-          </div>
-          <div class="toolbar-actions"><button class="utility-button optional-action" type="button">Indicators</button><button id="create-alert-button" class="alert-button" type="button"><span aria-hidden="true">♢</span> + Alert</button><button class="icon-action" type="button" aria-label="Fullscreen">⛶</button></div>
-        </div>
-        <div class="chart-subbar">
-          <div id="timeframes" class="timeframes" aria-label="Chart timeframe">
-            <button type="button" data-interval="1m">1m</button><button type="button" data-interval="5m">5m</button><button type="button" data-interval="15m">15m</button><button type="button" data-interval="30m">30m</button><button class="active" type="button" data-interval="1h">1h</button><button type="button" data-interval="4h">4h</button><button type="button" data-interval="1d">1D</button><button type="button" data-interval="1w">1W</button><button type="button" data-interval="1M" title="1 month">1M</button>
-          </div>
-          <span id="market-status" class="market-status" data-status="connecting"><i></i> CONNECTING</span>
-        </div>
-        <div class="chart-meta"><div><span id="ohlc-status">Loading market data…</span></div></div>
-        <div class="chart-stage"><div id="chart" class="chart-container" aria-label="BTC USDT candlestick chart"></div><div id="chart-state" class="chart-state">Loading market data…</div><div id="chart-history-state" class="chart-history-state" role="status" hidden></div><div id="quick-alert-menu" class="quick-alert-menu" role="menu" hidden><button type="button" role="menuitem" data-quick-alert-action>Add alert</button></div><div id="alert-line-menu" class="quick-alert-menu alert-line-menu" role="menu" hidden></div></div>
-        <div class="connection-bar"><span id="connection-status" data-status="connecting"><i></i> CONNECTING</span><span id="connection-message">Binance market data</span><button id="retry-button" class="retry-button" type="button" hidden>Retry</button><span class="connection-time">UTC+3</span></div>
+    <main id="terminal" class="terminal-layout" hidden>
+      <section class="chart-instrument-header" aria-label="Selected instrument">
+        <div class="primary-market-identity"><span id="toolbar-market-icon" class="coin-icon btc">₿</span><span><strong data-pair-label>BTC / USDT</strong><small><span data-exchange-label>Binance</span> · <span data-i18n="market.spot">Spot</span></small></span><div class="global-exchange-shell"><button id="active-exchange-selector" class="instrument-exchange-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Change exchange">⌄</button><div id="active-exchange-menu" class="dropdown-menu global-exchange-menu" role="menu" hidden><button class="dropdown-item active" type="button" data-active-exchange-option="binance">Binance</button><button class="dropdown-item" type="button" data-active-exchange-option="bybit">Bybit</button><button class="dropdown-item" type="button" data-active-exchange-option="okx">OKX</button></div></div><button id="favorite-button" class="favorite-button" type="button" aria-label="Add selected market to Watchlist" aria-pressed="true">★</button></div>
+        <div class="chart-quote"><strong id="current-price">—</strong><span id="toolbar-change" class="quote-change">— <small>24h</small></span></div>
+        <div class="chart-radar-context"><span class="score-ring">—</span><span><strong data-i18n="chart.scoreUnavailable">Score unavailable</strong><small data-i18n="chart.noRadarEvent">No verified Radar event</small></span></div>
+        <dl class="toolbar-stats" aria-label="24 hour market statistics"><div><dt data-i18n="market.high">High</dt><dd id="toolbar-high">—</dd></div><div><dt data-i18n="market.low">Low</dt><dd id="toolbar-low">—</dd></div><div><dt data-i18n="market.volume">Volume</dt><dd id="toolbar-volume">—</dd></div><div><dt data-i18n="watchlist.marketCap">Market Cap</dt><dd>—</dd></div></dl>
+        <div class="toolbar-actions"><button id="create-alert-button" class="alert-button" type="button"><span aria-hidden="true">ϟ</span> <span data-i18n="chart.quickAlert">Quick Alert</span></button><button class="chart-trade-button" type="button" disabled data-i18n="chart.trade">Trade</button></div>
       </section>
-
-      <aside id="watchlist" class="market-sidebar">
-        <section class="watchlist-panel">
-          <header class="panel-header"><h2>Watchlist</h2><div><button id="add-watchlist-button" type="button" aria-label="Find asset to add">＋</button><button type="button" aria-label="Watchlist menu">•••</button></div></header>
-          <div class="watchlist-tabs" role="tablist" aria-label="Watchlist filters"><button class="active" type="button">ALL</button><button type="button">FAV</button></div>
-          <div class="watchlist-head"><span>Asset</span><span>Last</span><span>Chg%</span></div>
-          <div id="watchlist-rows" class="watchlist-rows" aria-live="polite"></div>
+      <div class="chart-terminal-body">
+        <section class="chart-workspace" aria-label="Market chart">
+          <div class="chart-subbar"><div id="timeframes" class="timeframes" aria-label="Chart timeframe"><button type="button" data-interval="1m">1m</button><button type="button" data-interval="5m">5m</button><button type="button" data-interval="15m">15m</button><button class="active" type="button" data-interval="1h">1H</button><button type="button" data-interval="4h">4H</button><button type="button" data-interval="1d">1D</button><button type="button" data-interval="1w">1W</button><button type="button" data-interval="1M">1M</button></div><div class="chart-tools"><button type="button" disabled data-i18n="market.indicators">Indicators</button><button type="button" disabled data-i18n="chart.templates">Templates</button><button type="button" data-i18n="chart.alertLines">Alert Lines</button><button type="button" disabled data-i18n="chart.drawing">Drawing</button><button id="chart-fullscreen" type="button" aria-label="Fullscreen">⛶</button></div></div>
+          <div class="chart-meta"><div><strong><span id="chart-pair-label">BTC / USDT</span> · <span id="chart-timeframe-label">1H</span> · <span id="chart-exchange-label">Binance</span></strong><span id="ohlc-status" data-i18n="connection.loading">Loading market data…</span></div><span id="market-status" class="market-status" data-status="connecting"><i></i> CONNECTING</span></div>
+          <div class="chart-stage"><div id="chart" class="chart-container" aria-label="BTC USDT candlestick chart"></div><div id="chart-alert-overlays" class="chart-alert-overlays"></div><div class="chart-hotkey-hint" data-i18n="chart.hotkeyHint">Hotkeys: type 15 + Enter for 15m</div><div id="chart-state" class="chart-state" data-i18n="connection.loading">Loading market data…</div><div id="chart-history-state" class="chart-history-state" role="status" hidden></div><div id="quick-alert-menu" class="quick-alert-menu" role="menu" hidden><button type="button" role="menuitem" data-quick-alert-action>Add alert</button></div><div id="alert-line-menu" class="quick-alert-menu alert-line-menu" role="menu" hidden></div></div>
+          <div class="connection-bar"><span id="connection-status" data-status="connecting"><i></i> CONNECTING</span><span id="connection-message">Binance market data</span><button id="retry-button" class="retry-button" type="button" data-i18n="common.retry" hidden>Retry</button><span class="connection-time">UTC+3</span></div>
         </section>
-      </aside>
+        <aside class="chart-sidebar" aria-label="Market context">
+          <section class="chart-side-card chart-flow-card"><div class="chart-card-tabs"><strong data-i18n="chart.orderBook">Order Book</strong><span data-i18n="chart.trades">Trades</span></div><div class="chart-unavailable"><span>≋</span><strong data-i18n="chart.orderBookUnavailable">Order book unavailable</strong><small data-i18n="chart.verifiedOnly">A verified live feed is required.</small></div></section>
+          <section class="chart-side-card"><h2 data-i18n="chart.marketInfo">Market Info</h2><dl class="chart-market-info"><div><dt data-i18n="table.exchange">Exchange</dt><dd id="chart-info-exchange">—</dd></div><div><dt data-i18n="watchlist.marketType">Market Type</dt><dd id="chart-info-type">Spot</dd></div><div><dt data-i18n="chart.baseCurrency">Base Currency</dt><dd id="chart-info-base">—</dd></div><div><dt data-i18n="chart.quoteCurrency">Quote Currency</dt><dd id="chart-info-quote">—</dd></div><div><dt data-i18n="table.symbol">Symbol</dt><dd id="chart-info-symbol">—</dd></div></dl></section>
+          <section class="chart-side-card chart-related-card"><h2 data-i18n="chart.relatedMarkets">Related Markets</h2><div id="chart-related-markets" class="chart-related-markets"></div></section>
+        </aside>
+      </div>
+      <section id="chart-bottom-panel" class="chart-bottom-panel">
+        <article><h2><span data-i18n="chart.openAlerts">Open Alerts</span> <small id="chart-open-alert-count">0</small></h2><div id="chart-open-alerts" class="chart-bottom-list"></div></article>
+        <article><h2 data-i18n="chart.recentAlerts">Recent Alerts</h2><div id="chart-recent-alerts" class="chart-bottom-list"></div></article>
+        <article class="chart-notes-card"><h2 data-i18n="chart.notes">Notes</h2><textarea id="chart-notes" data-i18n-placeholder="chart.notesPlaceholder" placeholder="Notes for this market…"></textarea><small id="chart-notes-state"></small></article>
+        <article><h2 data-i18n="chart.performance">Performance</h2><div class="chart-unavailable compact"><strong data-i18n="chart.performanceUnavailable">Performance unavailable</strong><small data-i18n="chart.verifiedOnly">A verified live feed is required.</small></div></article>
+      </section>
+      <button id="chart-bottom-toggle" class="chart-bottom-toggle" type="button" aria-expanded="true"><span data-i18n="chart.hideBottom">Hide bottom panel</span>⌄</button>
     </main>
 
-    <nav class="mobile-nav" aria-label="Mobile navigation"><a class="active" href="#terminal"><span>⌁</span>Markets</a><a href="#watchlist"><span>☆</span>Watchlist</a><button id="mobile-alerts-button" type="button"><span>♢</span>Alerts</button><button type="button"><span>•••</span>More</button></nav>
+    <nav class="mobile-nav" aria-label="Mobile navigation" data-i18n-aria="nav.primary"><a class="active" href="#radar" data-workspace-view="radar"><span>◎</span><span data-i18n="nav.radar">Radar</span></a><a href="#watchlist" data-workspace-view="watchlist"><span>☆</span><span data-i18n="nav.watchlist">Watchlist</span></a><a href="#chart" data-workspace-view="chart"><span>▥</span><span data-i18n="nav.chart">Chart</span></a><a href="#markets" data-workspace-view="markets"><span>▥</span><span data-i18n="nav.markets">Markets</span></a></nav>
   </div>
   <div id="alert-dialog-backdrop" class="alert-backdrop" hidden>
     <section id="alert-dialog" class="alert-dialog" role="dialog" aria-modal="true" aria-labelledby="alert-dialog-title">
@@ -105,17 +145,22 @@
     <div id="alerts-list" class="alerts-list"></div>
   </aside>
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <div id="watchlist-import-backdrop" class="watchlist-import-backdrop" hidden><section class="watchlist-import-dialog" role="dialog" aria-modal="true" aria-labelledby="watchlist-import-title"><header><div><h2 id="watchlist-import-title" data-i18n="watchlist.importTitle">Import Watchlist</h2><p data-i18n="watchlist.importDescription">Import support for external formats is being prepared.</p></div><button type="button" data-close-watchlist-import aria-label="Close" data-i18n-aria="common.close">×</button></header><div><span aria-hidden="true">⇧</span><strong data-i18n="watchlist.importPreparing">Import is preparing</strong><p data-i18n="watchlist.importNoFake">No file will be processed until a verified importer is available.</p></div></section></div>
   <script src="https://unpkg.com/lightweight-charts@5.0.9/dist/lightweight-charts.standalone.production.js"></script>
   <script src="js/alerts/alert-core.js"></script>
   <script src="js/alerts/alert-storage.js"></script>
   <script src="js/alerts/server-alert-client.js"></script>
   <script src="js/alerts/quick-chart-alerts.js"></script>
   <script src="js/alerts/alert-hub.js"></script>
+  <script src="js/services/instrument-search.js"></script>
+  <script src="js/services/i18n.js"></script>
+  <script src="js/services/radar-event.js"></script>
   <script src="js/exchanges/browser-exchange-adapters.js"></script>
   <script src="js/services/exchange-workspace.js"></script>
   <script src="js/services/market-context.js"></script>
   <script src="js/services/watchlist-markets.js"></script>
   <script src="js/services/chart-history.js"></script>
+  <script src="js/services/chart-terminal.js"></script>
   <script src="js/notifications/alert-sound.js"></script>
   <script src="js/notifications/notification-center.js"></script>
   <script src="js/notifications/browser-notifier.js"></script>

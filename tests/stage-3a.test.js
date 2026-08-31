@@ -1,0 +1,15 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const instruments=require('../js/services/instrument-search.js'),marketContext=require('../js/services/market-context.js'),radarEvents=require('../js/services/radar-event.js');
+const markets=[
+  {exchange:'binance',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},
+  {exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},
+  {exchange:'okx',marketType:'spot',symbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT'},
+  {exchange:'binance',marketType:'spot',symbol:'WBTCUSDT',baseAsset:'WBTC',quoteAsset:'USDT'},
+  {exchange:'binance',marketType:'spot',symbol:'AAVEBTC',baseAsset:'AAVE',quoteAsset:'BTC'}
+];
+test('normalized instrument IDs are stable and retain native and display symbols',()=>{const a=instruments.normalize(markets[0]),b=instruments.normalize({...markets[0],status:'TRADING'});assert.equal(a.id,'binance:spot:BTCUSDT');assert.equal(a.id,b.id);assert.deepEqual([a.displaySymbol,a.nativeSymbol],['BTC/USDT','BTCUSDT'])});
+test('global BTC search is case-insensitive, cross-exchange, and ranks exact bases first',()=>{for(const query of ['BTC','btc','Btc']){const results=instruments.search(markets,query);assert.deepEqual(results.slice(0,3).map(item=>item.exchange),['binance','bybit','okx']);assert.equal(results.slice(0,3).every(item=>item.baseAsset==='BTC'),true);assert.equal(results.at(-1).baseAsset,'WBTC');assert.equal(results.some(item=>item.baseAsset==='AAVE'),false)}});
+test('selected search identity preserves the exact exchange and instrument for chart context',()=>{const selected=instruments.search(markets,'BTC').find(item=>item.exchange==='okx'),context=marketContext.fromMarket(selected);assert.deepEqual([context.marketId,context.exchange,context.symbol],['okx:spot:BTC-USDT','okx','BTC-USDT'])});
+test('English fallback, Russian loading, and persisted language preference work',()=>{class Storage{constructor(){this.value=new Map()}getItem(key){return this.value.get(key)||null}setItem(key,value){this.value.set(key,String(value))}}global.localStorage=new Storage();delete require.cache[require.resolve('../js/services/i18n.js')];const i18n=require('../js/services/i18n.js');assert.equal(i18n.resolveLocale('fr-FR'),'en');i18n.setPreference('en');assert.equal(i18n.t('search.noResults'),'No markets found');i18n.setPreference('ru');assert.equal(i18n.t('search.noResults'),'Рынки не найдены');assert.equal(global.localStorage.getItem(i18n.STORAGE_KEY),'ru');delete require.cache[require.resolve('../js/services/i18n.js')];assert.equal(require('../js/services/i18n.js').preference(),'ru');delete global.localStorage});
+test('RadarEvent references the shared normalized instrument identity',()=>{const instrument=instruments.normalize(markets[1]),event=radarEvents.create({id:'r1',instrumentId:instrument.id,instrument,timestamp:1,eventType:'FUTURE_EVENT',metrics:{},reasons:[]});assert.equal(event.instrumentId,'bybit:spot:BTCUSDT');assert.equal(event.instrument.id,instrument.id);assert.equal(radarEvents.create({...event,instrumentId:'bybit:spot:ETHUSDT'}),null)});
