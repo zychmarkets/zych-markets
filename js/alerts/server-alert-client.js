@@ -31,11 +31,12 @@
     }
     async sync({ notify = true } = {}) {
       const version = ++this.syncVersion;
-      const [alerts, triggers] = await Promise.all([this.request('/alerts'), this.request('/triggers')]);
+      const [alerts, triggers, health] = await Promise.all([this.request('/alerts'), this.request('/triggers'),this.request('/health')]);
       if (version !== this.syncVersion) return false;
       const incoming = triggers.triggers || [];
-      if (this.initialized && notify) incoming.slice().reverse().filter(event => !this.knownTriggers.has(event.id)).forEach(event => this.notifier?.notify(event));
-      this.alerts = alerts.alerts || []; this.history = incoming; this.knownTriggers = new Set(incoming.map(item => item.id)); this.initialized = true; this.onStatus(this.activeCount() ? 'LIVE' : 'IDLE'); this.onChange(this.list(), this.events());
+      const unseen=incoming.slice().reverse().filter(event=>!this.knownTriggers.has(event.id));incoming.forEach(event=>this.knownTriggers.add(event.id));
+      if (this.initialized && notify) unseen.forEach(event => this.notifier?.notify(event));
+      this.alerts = alerts.alerts || []; this.history = incoming; this.initialized = true; this.onStatus(health.alerts?.monitoringStatus||'OFFLINE',health); this.onChange(this.list(), this.events());
       return true;
     }
     async migrateLegacy() {

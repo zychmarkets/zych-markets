@@ -17,7 +17,7 @@ class JsonStorageAdapter {
     try {
       const parsed = JSON.parse(await fs.readFile(this.file, 'utf8'));
       const alerts = unique((Array.isArray(parsed.alerts) ? parsed.alerts : []).map(item => this.core.migrateAlert(item)).filter(item => this.core.validateAlert(item)));
-      const history = unique((Array.isArray(parsed.history) ? parsed.history : []).filter(validTrigger)).slice(-this.historyLimit);
+      const history = unique((Array.isArray(parsed.history) ? parsed.history : []).filter(validTrigger).map(item=>{const marketId=this.core.canonicalMarketId(item);return marketId?{...item,marketType:item.marketType||'spot',marketId}:item})).slice(-this.historyLimit);
       const pushSubscriptions = uniqueSubscriptions((Array.isArray(parsed.pushSubscriptions) ? parsed.pushSubscriptions : []).filter(validSubscription));
       this.state = { version: 1, alerts, history, pushSubscriptions, updatedAt: Number(parsed.updatedAt) || null };
       this.logger.info('storage_loaded', { alerts: alerts.length, history: history.length, pushSubscriptions: pushSubscriptions.length });

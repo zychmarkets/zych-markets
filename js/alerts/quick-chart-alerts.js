@@ -3,7 +3,8 @@
   const coordinateToPrice=(series,y)=>{const price=Number(series?.coordinateToPrice?.(Number(y)));return Number.isFinite(price)&&price>0?price:null};
   const operatorFor=(level,current)=>Number(level)>=Number(current)?'above':'below';
   const definitionFor=(market,level,current)=>({marketId:market.id,asset:market.asset,baseAsset:market.baseAsset,quoteAsset:market.quoteAsset,exchange:market.exchange,symbol:market.symbol,condition:{type:'price',operator:operatorFor(level,current),value:Number(level)},mode:'once'});
-  const matchingAlerts=(alerts,marketId)=>(alerts||[]).filter(alert=>(alert.status==='active'||alert.status==='paused')&&alert.marketId===marketId&&alert.condition?.type==='price'&&Number.isFinite(Number(alert.condition.value)));
+  const canonical=value=>{const parts=String(value||'').split(':');return parts.length===2?`${parts[0]}:spot:${parts[1]}`:String(value||'')};
+  const matchingAlerts=(alerts,marketId)=>(alerts||[]).filter(alert=>(alert.status==='active'||alert.status==='paused')&&canonical(alert.marketId)===canonical(marketId)&&alert.condition?.type==='price'&&Number.isFinite(Number(alert.condition.value)));
   const closestLine=(records,y,priceToCoordinate,hitRadius=9)=>{let best=null,distance=Infinity;for(const record of records||[]){const coordinate=Number(priceToCoordinate(Number(record.price))),delta=Math.abs(coordinate-Number(y));if(Number.isFinite(coordinate)&&delta<=hitRadius&&delta<distance){best=record;distance=delta}}return best};
   const exceedsDragThreshold=(start,x,y,threshold=4)=>Math.hypot(Number(x)-Number(start.x),Number(y)-Number(start.y))>=Number(threshold);
   class MenuController{

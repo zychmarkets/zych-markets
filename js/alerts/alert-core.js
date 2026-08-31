@@ -13,6 +13,7 @@
   const ALERT_TYPES = Object.freeze(['price', 'movement', 'volume']);
   const ALERT_MODES = Object.freeze(['once', 'recurring']);
   const ALERT_STATUSES = Object.freeze(['active', 'paused', 'triggered']);
+  const SUPPORTED_EXCHANGES = Object.freeze(['binance', 'bybit', 'okx']);
   const finite = value => value !== null && value !== '' && Number.isFinite(Number(value));
   const positive = value => finite(value) && Number(value) > 0;
   const safeTicker = value => typeof value === 'string' && /^[A-Z0-9]{1,20}$/.test(value);
@@ -22,6 +23,8 @@
     if (!value || typeof value.exchange !== 'string' || !safeSymbol(value.symbol)) return null;
     return `${value.exchange.toLowerCase()}:${value.marketType || 'spot'}:${value.symbol}`;
   }
+
+  function canonicalMarketId(value) { return marketIdentity(value); }
 
   function validateCondition(condition) {
     if (!condition || typeof condition !== 'object') return false;
@@ -35,6 +38,7 @@
     if (!record || typeof record !== 'object') return null;
     const condition = record.condition && typeof record.condition === 'object' ? { ...record.condition } : null;
     const createdAt = Number(record.createdAt);
+    const canonicalId = canonicalMarketId(record);
     return {
       ...record,
       version: ALERT_SCHEMA_VERSION,
@@ -42,6 +46,8 @@
       baseAsset: record.baseAsset || record.asset,
       asset: record.asset || record.baseAsset,
       quoteAsset: record.quoteAsset || 'USDT',
+      marketType: record.marketType || 'spot',
+      marketId: canonicalId || record.marketId,
       condition,
       mode: ALERT_MODES.includes(record.mode) ? record.mode : 'once',
       status: ALERT_STATUSES.includes(record.status) ? record.status : 'active',
@@ -60,6 +66,7 @@
   }
 
   function createAlert(definition, { id, now = Date.now() } = {}) {
+    if (!definition || !SUPPORTED_EXCHANGES.includes(String(definition.exchange || '').toLowerCase())) return null;
     const alert = migrateAlert({
       id,
       version: ALERT_SCHEMA_VERSION,
@@ -167,7 +174,7 @@
     return { alert: nextAlert, triggered: true, stateChanged: true, unavailable: false, triggerEvent: createTriggerEvent(nextAlert, event, result.details, { id, now }) };
   }
 
-  function alertFingerprint(alert) { return `${alert.marketId}|${alert.mode}|${JSON.stringify(alert.condition)}`; }
+  function alertFingerprint(alert) { return `${marketIdentity(alert)}|${alert.mode}|${JSON.stringify(alert.condition)}`; }
 
-  return { ALERT_SCHEMA_VERSION, DEFAULT_COOLDOWN_MS, MOVEMENT_WINDOWS, VOLUME_TIMEFRAMES, marketIdentity, validateCondition, migrateAlert, validateAlert, createAlert, validateMarketEvent, matchesEvent, evaluateAlert, createTriggerEvent, processMarketEvent, alertFingerprint };
+  return { ALERT_SCHEMA_VERSION, DEFAULT_COOLDOWN_MS, MOVEMENT_WINDOWS, VOLUME_TIMEFRAMES, SUPPORTED_EXCHANGES, marketIdentity, canonicalMarketId, validateCondition, migrateAlert, validateAlert, createAlert, validateMarketEvent, matchesEvent, evaluateAlert, createTriggerEvent, processMarketEvent, alertFingerprint };
 });

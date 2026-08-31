@@ -3,8 +3,9 @@
   const api=factory(global);if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychNotifications={...(global.ZychNotifications||{}),...api};
 })(typeof window!=='undefined'?window:globalThis,function(global){
   class NotificationCenter {
-    constructor({ region, sound, describe, formatTime, onOpen, setTimer=global.setTimeout }) { this.region = region; this.sound = sound; this.describe = describe; this.formatTime = formatTime; this.onOpen = onOpen;this.setTimer=setTimer; }
+    constructor({ region, sound, describe, formatTime, onOpen, setTimer=global.setTimeout }) { this.region = region; this.sound = sound; this.describe = describe; this.formatTime = formatTime; this.onOpen = onOpen;this.setTimer=setTimer;this.seen=new Set(); }
     notify(event) {
+      if(event?.id&&this.seen.has(event.id))return null;if(event?.id)this.seen.add(event.id);
       const toast = global.document.createElement('article'); toast.className = 'alert-toast'; toast.tabIndex = 0; toast.setAttribute('role', 'status');
       const title = global.document.createElement('strong'); title.textContent = `${event.asset} ALERT`;
       const copy = global.document.createElement('p'); copy.textContent = this.describe(event);

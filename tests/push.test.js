@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const core = require('../js/alerts/alert-core.js');
 const { JsonStorageAdapter, validSubscription } = require('../server/storage/json-storage.js');
 const { WebPushNotifier, notificationText } = require('../server/notifiers/web-push-notifier.js');
+const {PushManagerController,resolvePushApiBase}=require('../js/notifications/push-manager.js');
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
 const subscription = endpoint => ({ endpoint, keys: { p256dh: 'p'.repeat(65), auth: 'a'.repeat(16) } });
 const trigger = { id: 'trigger-1', alertId: 'alert-1', asset: 'BTC', symbol: 'BTCUSDT', exchange: 'binance', alertType: 'price', triggerPrice: 78500, triggeredAt: 1000, condition: { type: 'price', operator: 'above', value: 78499 } };
@@ -48,3 +49,5 @@ test('service worker handles malformed push and constrains notification click UR
   let pushWork; listeners.push({ data: { json: () => { throw new Error('bad'); } }, waitUntil: promise => { pushWork = promise; } }); await pushWork; assert.equal(shown[0].title, 'ZYCH Markets Alert');
   let clickWork; listeners.notificationclick({ notification: { data: { url: 'https://evil.example/' }, close() {} }, waitUntil: promise => { clickWork = promise; } }); await clickWork; assert.equal(opened[0], 'http://127.0.0.1:4178/');
 });
+
+test('push manager resolves the same canonical backend base on alternate localhost ports',()=>{const button={dataset:{},setAttribute(){},disabled:false};const controller=new PushManagerController({button,location:{protocol:'http:',hostname:'localhost',port:'5173'}});assert.equal(button.textContent,'Push OFF');assert.equal(controller.baseUrl,'http://127.0.0.1:4178/api');assert.equal(resolvePushApiBase({protocol:'http:',hostname:'127.0.0.1',port:'4178'}),'/api')});

@@ -13,7 +13,9 @@ class ServerAlertRunner {
     const alert = this.core.createAlert(definition, { id: crypto.randomUUID(), now: this.now() });
     if (!alert) return { error: 'INVALID_ALERT', message: 'Invalid alert definition.' };
     if (this.alerts.some(item => item.status !== 'triggered' && this.core.alertFingerprint(item) === this.core.alertFingerprint(alert))) return { error: 'DUPLICATE_ALERT', message: 'This alert already exists.' };
-    this.alerts.push(alert); await this.persist(); await this.rebuild(); return { alert: structuredClone(alert) };
+    this.alerts.push(alert); await this.persist(); await this.rebuild();
+    const currentPrice=this.previousPrices.get(this.core.marketIdentity(alert)),target=Number(alert.condition?.value),alreadySatisfied=alert.type==='price'&&Number.isFinite(currentPrice)&&(alert.condition.operator==='above'?currentPrice>target:currentPrice<target);
+    return { alert: structuredClone(alert), ...(alreadySatisfied?{warning:{code:'WAITING_FOR_RECROSS',message:`Current price ${currentPrice} already satisfies this condition. The alert will wait for a future directional recross of ${target}.`,currentPrice,target}}:{}) };
   }
   async pause(id) { return this.change(id, alert => ({ ...alert, status: 'paused', updatedAt: this.now() })); }
   async resume(id) { return this.change(id, alert => ({ ...alert, status: 'active', armed: true, updatedAt: this.now() })); }
@@ -49,6 +51,10 @@ class ServerAlertRunner {
     if (changed) await this.persist(); if (subscriptionsChanged) await this.rebuild();
   }
   async stop() { this.status = 'stopping'; await this.queue; await this.persist(); await this.transport.stop(); await this.storage.close(); this.status = 'stopped'; }
-  diagnostics() { const markets = new Set(this.active().map(item => item.marketId)); return { status: this.status, activeAlerts: this.active().length, activeMarkets: markets.size, ...this.transport.diagnostics() }; }
+  diagnostics() {
+    const active=this.active(),markets=new Set(active.map(item=>this.core.marketIdentity(item))),transport=this.transport.diagnostics(),relevant=[...new Set(active.map(item=>item.exchange))].map(exchange=>transport.exchanges?.[exchange]).filter(Boolean);
+    let monitoringStatus='IDLE';if(active.length){if(relevant.length&&relevant.every(item=>item.status==='live'&&item.connections>0))monitoringStatus='LIVE';else if(relevant.some(item=>item.status==='stale'))monitoringStatus='STALE';else if(relevant.some(item=>['connecting','subscribing','reconnecting'].includes(item.status)))monitoringStatus='RECONNECTING';else monitoringStatus='OFFLINE'}
+    return { status:this.status,monitoringStatus,activeAlerts:active.length,activeMarkets:markets.size,...transport };
+  }
 }
 module.exports = { ServerAlertRunner };
