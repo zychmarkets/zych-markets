@@ -2,8 +2,8 @@
 const crypto = require('node:crypto');
 
 class ServerAlertRunner {
-  constructor({ core, storage, transport, notifier, logger, now = Date.now }) {
-    this.core = core; this.storage = storage; this.transport = transport; this.notifier = notifier; this.logger = logger; this.now = now; this.alerts = []; this.history = []; this.status = 'stopped'; this.queue = Promise.resolve();
+  constructor({ core, storage, transport, notifier, logger, now = Date.now, debug = false }) {
+    this.core = core; this.storage = storage; this.transport = transport; this.notifier = notifier; this.logger = logger; this.now = now; this.debug = debug; this.alerts = []; this.history = []; this.previousPrices = new Map(); this.status = 'stopped'; this.queue = Promise.resolve();
   }
   async start() { this.alerts = this.storage.loadAlerts(); this.history = this.storage.loadTriggerHistory(); this.status = 'running'; await this.rebuild(); this.logger.info('runner_started', { alerts: this.alerts.length, active: this.active().length }); }
   active() { return this.alerts.filter(item => item.status === 'active'); }
@@ -35,13 +35,17 @@ class ServerAlertRunner {
   enqueue(event) { this.queue = this.queue.then(() => this.handle(event)).catch(error => this.logger.error('runner_event_error', { message: error.message })); return this.queue; }
   async handle(event) {
     let changed = false, subscriptionsChanged = false;
+    const identity = this.core.marketIdentity(event), currentPrice = Number(event?.price), previousPrice = identity ? this.previousPrices.get(identity) : undefined;
+    if(this.debug&&event?.eventType==='ticker')this.logger.debug('alert-runner-tick',{marketId:identity,price:currentPrice,activeAlerts:this.active().filter(alert=>this.core.marketIdentity(alert)===identity).length,previousPrice:Number.isFinite(previousPrice)?previousPrice:null});
     for (let index = 0; index < this.alerts.length; index += 1) {
       const alert = this.alerts[index]; if (!this.core.matchesEvent(alert, event)) continue;
-      const result = this.core.processMarketEvent(alert, event, { now: this.now(), eventId: crypto.randomUUID() });
+      const result = this.core.processMarketEvent(alert, event, { now: this.now(), eventId: crypto.randomUUID(), previousPrice });
+      if(this.debug&&alert.type==='price')this.logger.debug('alert-eval',{alertId:alert.id,marketId:identity,previousPrice:Number.isFinite(previousPrice)?previousPrice:null,currentPrice,target:Number(alert.condition.value),condition:alert.condition.operator,crossed:result.triggered});
       if (!result.stateChanged) continue;
       changed = true; this.alerts[index] = result.alert;
       if (result.triggered) { this.history.push(result.triggerEvent); await this.notifier.notify(result.triggerEvent); if (result.alert.status === 'triggered') subscriptionsChanged = true; }
     }
+    if (identity && Number.isFinite(currentPrice)) this.previousPrices.set(identity, currentPrice);
     if (changed) await this.persist(); if (subscriptionsChanged) await this.rebuild();
   }
   async stop() { this.status = 'stopping'; await this.queue; await this.persist(); await this.transport.stop(); await this.storage.close(); this.status = 'stopped'; }

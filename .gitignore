@@ -3,3 +3,4 @@ node_modules/
 server-data/
 *.tmp
 npm-debug.log*
+artifacts/stage-*/

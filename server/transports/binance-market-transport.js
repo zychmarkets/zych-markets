@@ -18,7 +18,8 @@ class BinanceMarketTransport {
   }
   identity(symbol) {
     const alert = this.alerts.find(item => item.symbol === symbol);
-    return { exchange: alert?.exchange || 'binance', symbol, baseAsset: alert?.baseAsset || '', quoteAsset: alert?.quoteAsset || '' };
+    const exchange = alert?.exchange || 'binance';
+    return { marketId: `${exchange}:spot:${symbol}`, exchange, marketType: 'spot', symbol, baseAsset: alert?.baseAsset || '', quoteAsset: alert?.quoteAsset || '' };
   }
   normalize(payload) {
     if (!payload?.s) return null;

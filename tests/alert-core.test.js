@@ -9,14 +9,17 @@ const candle = values => ({ exchange: 'binance', symbol: 'BTCUSDT', baseAsset: '
 
 assert.equal(typeof window, 'undefined');
 assert.equal(typeof document, 'undefined');
-assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'above', value: 100 }), ticker(101)).met, true);
-assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'below', value: 100 }), ticker(99)).met, true);
+assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'above', value: 100 }), ticker(101), { previousPrice: 99 }).met, true);
+assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'below', value: 100 }), ticker(99), { previousPrice: 101 }).met, true);
+assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'above', value: 100 }), ticker(101)).met, false);
+assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'above', value: 100 }), ticker(101), { previousPrice: 101 }).met, false);
+assert.equal(core.evaluateAlert(alert({ type: 'price', operator: 'below', value: 100 }), ticker(99), { previousPrice: 99 }).met, false);
 assert.equal(core.evaluateAlert(alert({ type: 'movement', direction: 'up', percent: 5, window: '1h' }), candle({ price: 106 })).met, true);
 assert.equal(core.evaluateAlert(alert({ type: 'movement', direction: 'down', percent: 5, window: '1h' }), candle({ price: 94 })).met, true);
 assert.equal(core.evaluateAlert(alert({ type: 'volume', multiplier: 2, timeframe: '1h' }), candle({ volume: 201 })).met, true);
 
 const once = alert({ type: 'price', operator: 'above', value: 100 });
-const onceResult = core.processMarketEvent(once, ticker(101), { now: 3000, eventId: 'trigger-1' });
+const onceResult = core.processMarketEvent(once, ticker(101), { now: 3000, eventId: 'trigger-1', previousPrice: 99 });
 assert.equal(onceResult.triggered, true);
 assert.equal(onceResult.alert.status, 'triggered');
 assert.equal(onceResult.triggerEvent.id, 'trigger-1');
@@ -25,11 +28,14 @@ assert.equal(onceResult.triggerEvent.triggerPrice, 101);
 assert.equal(onceResult.triggerEvent.marketSnapshot.eventType, 'ticker');
 
 let recurring = alert({ type: 'price', operator: 'above', value: 100 }, 'recurring');
-let result = core.processMarketEvent(recurring, ticker(101), { now: 10000, eventId: 'r1' }); recurring = result.alert; assert.equal(result.triggered, true);
-result = core.processMarketEvent(recurring, ticker(102), { now: 16000, eventId: 'r2' }); assert.equal(result.triggered, false);
-result = core.processMarketEvent(recurring, ticker(99), { now: 17000 }); recurring = result.alert; assert.equal(recurring.armed, true);
-result = core.processMarketEvent(recurring, ticker(101), { now: 14000, eventId: 'r2' }); assert.equal(result.triggered, false);
-result = core.processMarketEvent(recurring, ticker(101), { now: 18000, eventId: 'r2' }); assert.equal(result.triggered, true);
+let result = core.processMarketEvent(recurring, ticker(101), { now: 10000, eventId: 'r1', previousPrice: 99 }); recurring = result.alert; assert.equal(result.triggered, true);
+result = core.processMarketEvent(recurring, ticker(102), { now: 16000, eventId: 'r2', previousPrice: 101 }); recurring = result.alert; assert.equal(result.triggered, false); assert.equal(recurring.armed, false);
+result = core.processMarketEvent(recurring, ticker(99), { now: 17000, previousPrice: 102 }); recurring = result.alert; assert.equal(recurring.armed, true);
+result = core.processMarketEvent(recurring, ticker(101), { now: 18000, eventId: 'r2', previousPrice: 99 }); assert.equal(result.triggered, true);
+
+const invalidNumeric = core.processMarketEvent(alert({ type: 'price', operator: 'above', value: 100 }), ticker('not-a-number'), { previousPrice: 99 });
+assert.equal(invalidNumeric.triggered, false); assert.equal(invalidNumeric.unavailable, true);
+assert.notEqual(core.marketIdentity({ exchange: 'binance', symbol: 'BTCUSDT' }), core.marketIdentity({ exchange: 'bybit', symbol: 'BTCUSDT' }));
 
 assert.equal(core.validateAlert({ id: 'broken' }), false);
 assert.equal(core.validateCondition({ type: 'price', operator: 'sideways', value: 1 }), false);

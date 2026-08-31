@@ -9,9 +9,9 @@
   const clampVolume = value => Math.min(1, Math.max(0, Number(value) || 0));
 
   class AlertSoundManager {
-    constructor({ onState = () => {} } = {}) {
-      this.context = null; this.soundId = this.loadSound(); this.enabled = this.loadEnabled(); this.volume = this.loadVolume(); this.unlocked = false; this.playCount = 0; this.onState = onState;
-      this.unlock = this.unlock.bind(this); document.addEventListener('pointerdown', this.unlock, { passive: true }); document.addEventListener('keydown', this.unlock);
+    constructor({ onState = () => {}, onWarning = message => global.console?.warn?.(`[ZYCH audio] ${message}`) } = {}) {
+      this.context = null; this.soundId = this.loadSound(); this.enabled = this.loadEnabled(); this.volume = this.loadVolume(); this.unlocked = false; this.playCount = 0; this.lastError = ''; this.onState = onState; this.onWarning = onWarning;this.listening=false;
+      this.unlock = this.unlock.bind(this);this.attachUnlockListeners();
     }
     loadSound() { const value = safeRead(SOUND_KEYS.sound); return VALID_SOUNDS.has(value) ? value : DEFAULT_SOUND; }
     loadEnabled() { const value = safeRead(SOUND_KEYS.enabled); if (value !== null) return value === 'true'; const legacy = safeRead(LEGACY_ENABLED_KEY); return legacy === null ? true : legacy === 'on'; }
@@ -19,10 +19,14 @@
     setSound(soundId) { if (!VALID_SOUNDS.has(soundId)) return false; this.soundId = soundId; safeWrite(SOUND_KEYS.sound, soundId); this.emitState(); return true; }
     setEnabled(enabled) { this.enabled = Boolean(enabled); safeWrite(SOUND_KEYS.enabled, this.enabled); this.emitState(); }
     setVolume(value) { this.volume = clampVolume(value); safeWrite(SOUND_KEYS.volume, this.volume); this.emitState(); }
-    state() { return { soundId: this.soundId, enabled: this.enabled, volume: this.volume, unlocked: this.unlocked, playCount: this.playCount }; }
+    state() { return { soundId: this.soundId, enabled: this.enabled, volume: this.volume, unlocked: this.unlocked, playCount: this.playCount, contextState:this.context?.state||'uninitialized', lastError:this.lastError }; }
     emitState() { this.onState(this.state()); }
     ensureContext() { if (!this.context) { const AudioContextClass = global.AudioContext || global.webkitAudioContext; if (!AudioContextClass) return null; this.context = new AudioContextClass({ latencyHint: 'interactive' }); } return this.context; }
-    async unlock() { try { const context = this.ensureContext(); if (!context) return false; if (context.state === 'suspended') await context.resume(); this.unlocked = context.state === 'running'; this.emitState(); return this.unlocked; } catch { return false; } }
+    prime(context){const oscillator=context.createOscillator(),gain=context.createGain(),now=context.currentTime;gain.gain.setValueAtTime(0.0001,now);oscillator.connect(gain);gain.connect(context.destination);oscillator.start(now);oscillator.stop(now+.015)}
+    attachUnlockListeners(){if(this.listening)return;document.addEventListener('pointerdown',this.unlock,{passive:true});document.addEventListener('keydown',this.unlock);this.listening=true}
+    detachUnlockListeners(){if(!this.listening)return;document.removeEventListener('pointerdown',this.unlock);document.removeEventListener('keydown',this.unlock);this.listening=false}
+    fail(error,message){this.unlocked=false;this.lastError=error?.message||message;this.attachUnlockListeners();this.emitState();this.onWarning(message);return false}
+    async unlock() { try { const context = this.ensureContext(); if (!context) return this.fail(null,'Web Audio API is unavailable'); if (context.state === 'suspended') await context.resume(); if(context.state!=='running')return this.fail(null,`AudioContext remained ${context.state}`);this.prime(context);this.unlocked=true;this.lastError='';this.detachUnlockListeners();this.emitState();return true; } catch(error) { return this.fail(error,'Audio unlock failed'); } }
     envelope(context, destination, start, attack, peak, release) { const gain = context.createGain(); gain.gain.setValueAtTime(0.0001, start); gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak), start + attack); gain.gain.exponentialRampToValueAtTime(0.0001, start + attack + release); gain.connect(destination); return gain; }
     tone(context, destination, { start, duration, frequency, endFrequency = frequency, type = 'sine', gain = 1, attack = 0.012 }) { const oscillator = context.createOscillator(), envelope = this.envelope(context, destination, start, attack, gain, Math.max(0.02, duration - attack)); oscillator.type = type; oscillator.frequency.setValueAtTime(frequency, start); if (endFrequency !== frequency) oscillator.frequency.exponentialRampToValueAtTime(endFrequency, start + duration); oscillator.connect(envelope); oscillator.start(start); oscillator.stop(start + duration + 0.025); }
     render(soundId, context, output, now) {
@@ -33,7 +37,7 @@
     }
     async play(soundId = this.soundId, { force = false } = {}) {
       if (!VALID_SOUNDS.has(soundId)) soundId = this.soundId; if (!force && !this.enabled) return false;
-      try { const context = this.ensureContext(); if (!context) return false; if (context.state === 'suspended') await context.resume(); if (context.state !== 'running') { this.unlocked = false; this.emitState(); return false; } this.unlocked = true; const now = context.currentTime + 0.008, master = context.createGain(); master.gain.setValueAtTime(this.volume, now); master.connect(context.destination); this.render(soundId, context, master, now); this.playCount += 1; this.emitState(); return true; } catch { return false; }
+      try { const context = this.ensureContext(); if (!context) return this.fail(null,'Web Audio API is unavailable'); if (context.state === 'suspended') await context.resume(); if (context.state !== 'running') return this.fail(null,`Alert sound blocked while AudioContext is ${context.state}`); this.unlocked = true; this.lastError=''; const now = context.currentTime + 0.008, master = context.createGain(); master.gain.setValueAtTime(this.volume, now); master.connect(context.destination); this.render(soundId, context, master, now); this.playCount += 1; this.emitState(); return true; } catch(error) { return this.fail(error,'Alert sound playback failed'); }
     }
     preview(soundId = this.soundId) { return this.play(soundId, { force: true }); }
   }

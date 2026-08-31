@@ -1,9 +1,21 @@
-(function (global) {
+(function (global, factory) {
   'use strict';
+  const api=factory(global);
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  else global.ZychAlerts={...(global.ZychAlerts||{}),...api};
+})(typeof window!=='undefined'?window:globalThis,function(global){
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+  function resolveAlertApiBase(location=global.location){
+    if(!location)return'/api';
+    const hostname=String(location.hostname||'').toLowerCase(),port=String(location.port||''),protocol=String(location.protocol||'');
+    if(protocol==='file:')return'http://127.0.0.1:4178/api';
+    if(protocol==='http:'&&['localhost','127.0.0.1'].includes(hostname)&&port&&port!=='4178')return'http://127.0.0.1:4178/api';
+    return'/api';
+  }
+  const networkFailure=error=>error?.name==='TypeError'||error?.name==='AbortError';
   class ServerAlertClient {
-    constructor({ baseUrl = '/api', notifier = null, legacyStorage = null, onChange = () => {}, onStatus = () => {}, pollMs = 5000 } = {}) {
-      this.baseUrl = baseUrl; this.notifier = notifier; this.legacyStorage = legacyStorage; this.onChange = onChange; this.onStatus = onStatus; this.pollMs = pollMs; this.alerts = []; this.history = []; this.knownTriggers = new Set(); this.running = false; this.initialized = false;
+    constructor({ baseUrl = null, notifier = null, legacyStorage = null, onChange = () => {}, onStatus = () => {}, pollMs = 5000 } = {}) {
+      this.baseUrl = baseUrl || resolveAlertApiBase(); this.notifier = notifier; this.legacyStorage = legacyStorage; this.onChange = onChange; this.onStatus = onStatus; this.pollMs = pollMs; this.alerts = []; this.history = []; this.knownTriggers = new Set(); this.running = false; this.initialized = false; this.syncVersion = 0;
     }
     list() { return [...this.alerts]; }
     events() { return [...this.history]; }
@@ -18,10 +30,13 @@
       } finally { clearTimeout(timeout); }
     }
     async sync({ notify = true } = {}) {
+      const version = ++this.syncVersion;
       const [alerts, triggers] = await Promise.all([this.request('/alerts'), this.request('/triggers')]);
+      if (version !== this.syncVersion) return false;
       const incoming = triggers.triggers || [];
       if (this.initialized && notify) incoming.slice().reverse().filter(event => !this.knownTriggers.has(event.id)).forEach(event => this.notifier?.notify(event));
       this.alerts = alerts.alerts || []; this.history = incoming; this.knownTriggers = new Set(incoming.map(item => item.id)); this.initialized = true; this.onStatus(this.activeCount() ? 'LIVE' : 'IDLE'); this.onChange(this.list(), this.events());
+      return true;
     }
     async migrateLegacy() {
       if (!this.legacyStorage || this.alerts.length) return;
@@ -34,7 +49,7 @@
       while (this.running) { try { await this.sync(); await this.migrateLegacy(); } catch { this.onStatus('OFFLINE'); } await sleep(this.pollMs); }
     }
     stop() { this.running = false; }
-    async create(definition) { try { const result = await this.request('/alerts', { method: 'POST', body: JSON.stringify(definition) }); await this.sync({ notify: false }); return result; } catch (error) { return { error: error.message }; } }
+    async create(definition) { try { const result = await this.request('/alerts', { method: 'POST', body: JSON.stringify(definition) }); await this.sync({ notify: false }); return result; } catch (error) { return { error: networkFailure(error) ? 'Alert service unavailable' : error.message, errorCode: networkFailure(error) ? 'NETWORK_UNAVAILABLE' : error.code || 'REQUEST_FAILED' }; } }
     updatePrice(id, value) { return this.request(`/alerts/${encodeURIComponent(id)}/price`, { method: 'PATCH', body: JSON.stringify({ value }) }); }
     updateStatus(id, status) { return this.request(`/alerts/${encodeURIComponent(id)}/${status === 'paused' ? 'pause' : 'resume'}`, { method: 'POST' }); }
     deleteAlert(id) { return this.request(`/alerts/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
@@ -44,5 +59,5 @@
     remove(id) { return this.action(id, ''); }
     async removeEvent(id) { await this.request(`/triggers/${encodeURIComponent(id)}`, { method: 'DELETE' }); await this.sync({ notify: false }); }
   }
-  global.ZychAlerts = { ...(global.ZychAlerts || {}), ServerAlertClient };
-})(window);
+  return{ServerAlertClient,resolveAlertApiBase,networkFailure};
+});

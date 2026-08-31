@@ -16,6 +16,7 @@ function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
     dataDir: path.resolve(root, env.ZYCH_DATA_DIR || 'server-data'),
     historyLimit: integer(env.ZYCH_HISTORY_LIMIT, 500, 10, 5000),
     logLevel: env.ZYCH_LOG_LEVEL || 'info',
+    alertFeedDebug: env.ZYCH_ALERT_FEED_DEBUG === 'true',
     production: env.NODE_ENV === 'production',
     internalDiagnosticsEnabled: env.RADAR_INTERNAL_DIAGNOSTICS_ENABLED === 'true',
     allowedOrigins: Object.freeze(String(env.ZYCH_ALLOWED_ORIGINS || '').split(',').map(item=>item.trim()).filter(Boolean)),

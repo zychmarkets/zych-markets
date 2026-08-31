@@ -13,10 +13,15 @@
   const ALERT_TYPES = Object.freeze(['price', 'movement', 'volume']);
   const ALERT_MODES = Object.freeze(['once', 'recurring']);
   const ALERT_STATUSES = Object.freeze(['active', 'paused', 'triggered']);
-  const finite = value => Number.isFinite(Number(value));
+  const finite = value => value !== null && value !== '' && Number.isFinite(Number(value));
   const positive = value => finite(value) && Number(value) > 0;
   const safeTicker = value => typeof value === 'string' && /^[A-Z0-9]{1,20}$/.test(value);
   const safeSymbol = value => typeof value === 'string' && /^[A-Z0-9-]{1,30}$/.test(value);
+
+  function marketIdentity(value) {
+    if (!value || typeof value.exchange !== 'string' || !safeSymbol(value.symbol)) return null;
+    return `${value.exchange.toLowerCase()}:${value.marketType || 'spot'}:${value.symbol}`;
+  }
 
   function validateCondition(condition) {
     if (!condition || typeof condition !== 'object') return false;
@@ -86,17 +91,19 @@
   }
 
   function matchesEvent(alert, event) {
-    if (!validateAlert(alert) || !validateMarketEvent(event) || alert.status !== 'active' || alert.exchange !== event.exchange || alert.symbol !== event.symbol) return false;
+    if (!validateAlert(alert) || !validateMarketEvent(event) || alert.status !== 'active' || marketIdentity(alert) !== marketIdentity(event)) return false;
     if (alert.type === 'price') return event.eventType === 'ticker';
     if (alert.type === 'movement') return event.eventType === 'candle' && (alert.condition.window === '24h' ? '1d' : alert.condition.window) === event.interval;
     return event.eventType === 'candle' && alert.condition.timeframe === event.interval;
   }
 
-  function evaluateAlert(alert, event) {
+  function evaluateAlert(alert, event, { previousPrice } = {}) {
     const condition = alert?.condition || {};
     if (condition.type === 'price' && finite(event.price)) {
       const price = Number(event.price), threshold = Number(condition.value);
-      return { met: condition.operator === 'above' ? price >= threshold : price <= threshold, details: { currentPrice: price } };
+      if (!finite(previousPrice)) return { met: false, baseline: true, rearm: false, details: { currentPrice: price, previousPrice: null } };
+      const previous = Number(previousPrice), above = condition.operator === 'above';
+      return { met: above ? previous <= threshold && price > threshold : previous >= threshold && price < threshold, rearm: above ? price <= threshold : price >= threshold, details: { currentPrice: price, previousPrice: previous } };
     }
     if (condition.type === 'movement' && finite(event.price) && finite(event.open) && Number(event.open) > 0) {
       const price = Number(event.price), referencePrice = Number(event.open), percentMove = ((price - referencePrice) / referencePrice) * 100, threshold = Number(condition.percent);
@@ -145,13 +152,13 @@
     };
   }
 
-  function processMarketEvent(alertRecord, event, { now = Date.now(), eventId } = {}) {
+  function processMarketEvent(alertRecord, event, { now = Date.now(), eventId, previousPrice } = {}) {
     const alert = migrateAlert(alertRecord);
     if (!validateAlert(alert) || !matchesEvent(alert, event)) return { alert, triggered: false, stateChanged: false, unavailable: true, triggerEvent: null };
-    const result = evaluateAlert(alert, event);
+    const result = evaluateAlert(alert, event, { previousPrice });
     if (result.unavailable) return { alert, triggered: false, stateChanged: false, unavailable: true, triggerEvent: null };
     if (!result.met) {
-      if (!alert.armed) return { alert: { ...alert, armed: true, updatedAt: now }, triggered: false, stateChanged: true, unavailable: false, triggerEvent: null };
+      if (!alert.armed && result.rearm !== false) return { alert: { ...alert, armed: true, updatedAt: now }, triggered: false, stateChanged: true, unavailable: false, triggerEvent: null };
       return { alert, triggered: false, stateChanged: false, unavailable: false, triggerEvent: null };
     }
     if (!alert.armed || alert.lastTriggeredAt && now - alert.lastTriggeredAt < alert.cooldownMs) return { alert, triggered: false, stateChanged: false, unavailable: false, triggerEvent: null };
@@ -162,5 +169,5 @@
 
   function alertFingerprint(alert) { return `${alert.marketId}|${alert.mode}|${JSON.stringify(alert.condition)}`; }
 
-  return { ALERT_SCHEMA_VERSION, DEFAULT_COOLDOWN_MS, MOVEMENT_WINDOWS, VOLUME_TIMEFRAMES, validateCondition, migrateAlert, validateAlert, createAlert, validateMarketEvent, matchesEvent, evaluateAlert, createTriggerEvent, processMarketEvent, alertFingerprint };
+  return { ALERT_SCHEMA_VERSION, DEFAULT_COOLDOWN_MS, MOVEMENT_WINDOWS, VOLUME_TIMEFRAMES, marketIdentity, validateCondition, migrateAlert, validateAlert, createAlert, validateMarketEvent, matchesEvent, evaluateAlert, createTriggerEvent, processMarketEvent, alertFingerprint };
 });

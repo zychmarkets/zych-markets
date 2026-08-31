@@ -9,6 +9,7 @@ const { JsonStorageAdapter } = require('../server/storage/json-storage.js');
 const { ServerAlertRunner } = require('../server/alert-runner.js');
 const { createServerApp } = require('../server/app.js');
 const { BinanceMarketTransport } = require('../server/transports/binance-market-transport.js');
+const { BybitMarketTransport } = require('../server/transports/bybit-market-transport.js');
 const { createUnifiedEvent } = require('../server/radar/event-schema.js');
 
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
@@ -40,12 +41,31 @@ test('durable storage survives restart, deduplicates records and recovers corrup
 
 test('runner supports lifecycle, once, recurring, re-arm and all conditions', async () => {
   const f = await fixture();
-  const once = await f.runner.create(definition()); await f.runner.handle(ticker(101)); assert.equal(f.runner.list().find(a => a.id === once.alert.id).status, 'triggered');
-  const recurring = await f.runner.create(definition({ type: 'price', operator: 'below', value: 100 }, 'recurring', 'ETH')); await f.runner.handle(ticker(99, 'ETH')); await f.runner.handle(ticker(98, 'ETH')); assert.equal(f.runner.list().find(a => a.id === recurring.alert.id).triggerCount, 1); await f.runner.handle(ticker(101, 'ETH')); f.runner.alerts.find(a => a.id === recurring.alert.id).lastTriggeredAt = 0; await f.runner.handle(ticker(99, 'ETH')); assert.equal(f.runner.list().find(a => a.id === recurring.alert.id).triggerCount, 2);
+  const once = await f.runner.create(definition()); await f.runner.handle(ticker(99)); assert.equal(f.notifications.length,0); await f.runner.handle(ticker(101)); assert.equal(f.runner.list().find(a => a.id === once.alert.id).status, 'triggered');
+  const recurring = await f.runner.create(definition({ type: 'price', operator: 'below', value: 100 }, 'recurring', 'ETH')); await f.runner.handle(ticker(101, 'ETH')); await f.runner.handle(ticker(99, 'ETH')); await f.runner.handle(ticker(98, 'ETH')); assert.equal(f.runner.list().find(a => a.id === recurring.alert.id).triggerCount, 1); await f.runner.handle(ticker(101, 'ETH')); f.runner.alerts.find(a => a.id === recurring.alert.id).lastTriggeredAt = 0; await f.runner.handle(ticker(99, 'ETH')); assert.equal(f.runner.list().find(a => a.id === recurring.alert.id).triggerCount, 2);
   await f.runner.create(definition({ type: 'movement', direction: 'up', percent: 5, window: '1h' })); await f.runner.handle(candle({ price: 106 }));
   await f.runner.create(definition({ type: 'movement', direction: 'down', percent: 5, window: '1h' })); await f.runner.handle(candle({ price: 94 }));
   await f.runner.create(definition({ type: 'volume', multiplier: 2, timeframe: '1h' })); await f.runner.handle(candle({ price: 100, volume: 201, averageVolume: 100 }));
   assert.equal(f.notifications.length, 6); await f.close();
+});
+
+test('runner keeps a baseline per normalized market and dispatches a crossing exactly once', async () => {
+  const f=await fixture(),bybit={marketId:'bybit:spot:BTCUSDT',exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT',condition:{type:'price',operator:'above',value:100},mode:'once'};
+  const created=(await f.runner.create(bybit)).alert;
+  await f.runner.handle({exchange:'binance',marketType:'spot',symbol:'BTCUSDT',eventType:'ticker',price:99,timestamp:1});
+  await f.runner.handle({exchange:'binance',marketType:'spot',symbol:'BTCUSDT',eventType:'ticker',price:101,timestamp:2});
+  assert.equal(f.notifications.length,0); assert.equal(f.runner.list().find(a=>a.id===created.id).status,'active');
+  await f.runner.handle({marketId:'bybit:spot:BTCUSDT',exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',eventType:'ticker',price:99,timestamp:3});
+  await f.runner.handle({marketId:'bybit:spot:BTCUSDT',exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',eventType:'ticker',price:101,timestamp:4});
+  await f.runner.handle({marketId:'bybit:spot:BTCUSDT',exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',eventType:'ticker',price:102,timestamp:5});
+  assert.equal(f.notifications.length,1); assert.equal(f.runner.events().length,1); assert.equal(f.runner.list().find(a=>a.id===created.id).status,'triggered'); await f.close();
+});
+
+test('normalized Bybit websocket ticks reach the authoritative runner after subscribe and reconnect',async()=>{
+  const f=await fixture(),created=(await f.runner.create({marketId:'bybit:spot:BTCUSDT',exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT',condition:{type:'price',operator:'above',value:100},mode:'once'})).alert,sockets=[];
+  class FakeSocket{constructor(){this.readyState=0;this.listeners={};this.sent=[];sockets.push(this)}addEventListener(type,handler){this.listeners[type]=handler}send(value){this.sent.push(JSON.parse(value))}close(){this.readyState=3}}
+  const transport=new BybitMarketTransport({restBase:'',wsBase:'ws://bybit',logger:silent,WebSocketImpl:FakeSocket,reconnectBaseMs:1,reconnectMaxMs:1});
+  await transport.start([created],{onEvent:event=>f.runner.enqueue(event)});sockets[0].readyState=1;sockets[0].listeners.open();sockets[0].listeners.message({data:JSON.stringify({success:true,op:'subscribe'})});sockets[0].listeners.message({data:JSON.stringify({topic:'tickers.BTCUSDT',ts:1,data:{symbol:'BTCUSDT',lastPrice:'99'}})});await f.runner.queue;sockets[0].readyState=3;sockets[0].listeners.close({code:1006,reason:'test'});await new Promise(resolve=>setTimeout(resolve,5));sockets[1].readyState=1;sockets[1].listeners.open();sockets[1].listeners.message({data:JSON.stringify({success:true,op:'subscribe'})});sockets[1].listeners.message({data:JSON.stringify({topic:'tickers.BTCUSDT',ts:2,data:{symbol:'BTCUSDT',lastPrice:'101'}})});await f.runner.queue;assert.deepEqual(sockets[1].sent[0].args,['tickers.BTCUSDT']);assert.equal(f.notifications.length,1);assert.equal(f.runner.list().find(alert=>alert.id===created.id).status,'triggered');await transport.stop();await f.close();
 });
 
 test('100 alerts across BTC ETH SOL use one transport and unique subscriptions', async () => {
@@ -61,7 +81,7 @@ test('price update preserves alert identity and changes only condition value', a
 
 test('pause preserves identity and price, suppresses triggers, and resume restores evaluation', async () => {
   const f=await fixture(),created=(await f.runner.create(definition())).alert,before=structuredClone(created),paused=await f.runner.pause(created.id);
-  assert.equal(paused.id,before.id);assert.equal(paused.marketId,before.marketId);assert.equal(paused.exchange,before.exchange);assert.equal(paused.symbol,before.symbol);assert.deepEqual(paused.condition,before.condition);assert.equal(paused.status,'paused');await f.runner.handle(ticker(101));assert.equal(f.notifications.length,0);assert.equal(f.runner.list().find(alert=>alert.id===created.id).status,'paused');const resumed=await f.runner.resume(created.id);assert.equal(resumed.id,before.id);assert.deepEqual(resumed.condition,before.condition);await f.runner.handle(ticker(101));assert.equal(f.notifications.length,1);await f.close();
+  assert.equal(paused.id,before.id);assert.equal(paused.marketId,before.marketId);assert.equal(paused.exchange,before.exchange);assert.equal(paused.symbol,before.symbol);assert.deepEqual(paused.condition,before.condition);assert.equal(paused.status,'paused');await f.runner.handle(ticker(101));assert.equal(f.notifications.length,0);assert.equal(f.runner.list().find(alert=>alert.id===created.id).status,'paused');const resumed=await f.runner.resume(created.id);assert.equal(resumed.id,before.id);assert.deepEqual(resumed.condition,before.condition);await f.runner.handle(ticker(99));await f.runner.handle(ticker(101));assert.equal(f.notifications.length,1);await f.close();
 });
 
 test('HTTP API health, CRUD, validation and malformed payload', async () => {

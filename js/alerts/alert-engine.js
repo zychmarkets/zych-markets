@@ -10,7 +10,7 @@
   class AlertEngine {
     constructor({ storage, core, transport, notifier = null, onChange = () => {}, onTrigger = () => {}, onStatus = () => {}, idFactory = fallbackId }) {
       this.storage = storage; this.core = core; this.transport = transport; this.notifier = notifier; this.onChange = onChange; this.onTrigger = onTrigger; this.onStatus = onStatus; this.idFactory = idFactory; this.maxHistory = Number(storage.maxHistory) || 500;
-      this.alerts = storage.loadAlerts(); this.history = storage.loadTriggerHistory ? storage.loadTriggerHistory() : storage.loadHistory(); this.status = 'OFFLINE'; this.generation = 0;
+      this.alerts = storage.loadAlerts(); this.history = storage.loadTriggerHistory ? storage.loadTriggerHistory() : storage.loadHistory(); this.previousPrices = new Map(); this.status = 'OFFLINE'; this.generation = 0;
     }
     list() { return [...this.alerts]; }
     events() { return [...this.history].reverse(); }
@@ -49,9 +49,10 @@
     }
     handleMarketEvent(event) {
       let changed = false, subscriptionsChanged = false;
+      const identity = this.core.marketIdentity(event), currentPrice = Number(event?.price), previousPrice = identity ? this.previousPrices.get(identity) : undefined;
       this.alerts = this.alerts.map(alert => {
         if (!this.core.matchesEvent(alert, event)) return alert;
-        const result = this.core.processMarketEvent(alert, event, { now: Date.now(), eventId: this.idFactory('trigger') });
+        const result = this.core.processMarketEvent(alert, event, { now: Date.now(), eventId: this.idFactory('trigger'), previousPrice });
         if (!result.stateChanged) return alert;
         changed = true;
         if (result.triggered) {
@@ -60,6 +61,7 @@
         }
         return result.alert;
       });
+      if (identity && Number.isFinite(currentPrice)) this.previousPrices.set(identity, currentPrice);
       if (changed) this.persist();
       if (subscriptionsChanged) this.rebuild();
     }

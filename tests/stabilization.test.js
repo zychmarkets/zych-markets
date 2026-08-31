@@ -43,7 +43,7 @@ async function run() {
   const recurringStorage = { maxHistory: 500, loadAlerts: () => [baseAlert('r1', { mode: 'recurring' })], loadTriggerHistory: () => [], saveAlerts() {}, saveHistory() {} }, recurringTransport = new FakeTransport(); let notifications = 0;
   const recurring = new AlertEngine({ storage: recurringStorage, core, transport: recurringTransport, notifier: { notify: () => { notifications += 1; } }, idFactory: prefix => `${prefix}-${notifications}` }); recurring.start();
   const tick = price => ({ exchange: 'binance', symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT', eventType: 'ticker', price, timestamp: Date.now() });
-  recurringTransport.emit(tick(101)); recurringTransport.emit(tick(102)); assert.equal(notifications, 1); recurringTransport.emit(tick(99)); recurring.alerts[0].lastTriggeredAt = 0; recurringTransport.emit(tick(101)); assert.equal(notifications, 2);
+  recurringTransport.emit(tick(99)); recurringTransport.emit(tick(101)); recurringTransport.emit(tick(102)); assert.equal(notifications, 1); recurringTransport.emit(tick(99)); recurring.alerts[0].lastTriggeredAt = 0; recurringTransport.emit(tick(101)); assert.equal(notifications, 2);
 
   let historyRequest = 0;
   global.fetch = (_url, { signal }) => { historyRequest += 1; if (historyRequest === 1) return new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })); return Promise.resolve({ ok: true, json: async () => [[1000, '1', '2', '.5', '1.5', '10'], [2000, '1.5', '2.5', '1', '2', '12']] }); };
