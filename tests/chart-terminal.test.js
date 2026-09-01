@@ -16,3 +16,11 @@ test('related markets preserve exchange and quote identity',()=>{
   const current={id:'a',exchange:'binance',quoteAsset:'USDT'},markets=[current,{id:'b',exchange:'binance',quoteAsset:'USDT',enabled:true},{id:'c',exchange:'okx',quoteAsset:'USDT',enabled:true},{id:'d',exchange:'binance',quoteAsset:'BTC',enabled:true}];
   assert.deepEqual(terminal.relatedMarkets(markets,current).map(item=>item.id),['b']);
 });
+
+test('bottom utility panel defaults by viewport height but preserves explicit session state',()=>{
+  assert.equal(terminal.bottomPanelCollapsed(null,768),true);
+  assert.equal(terminal.bottomPanelCollapsed(null,899),true);
+  assert.equal(terminal.bottomPanelCollapsed(null,900),false);
+  assert.equal(terminal.bottomPanelCollapsed('open',768),false);
+  assert.equal(terminal.bottomPanelCollapsed('collapsed',1080),true);
+});

@@ -4,5 +4,6 @@
   function hotkeyInterval(value){return HOTKEYS[String(value)]||null}
   function isEditable(target){return Boolean(target?.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"], .search-shell'))}
   function relatedMarkets(markets,current,limit=6){if(!current)return[];return markets.filter(item=>item.enabled&&!item.unavailable&&item.id!==current.id&&item.exchange===current.exchange&&item.quoteAsset===current.quoteAsset).slice(0,limit)}
-  return{alertDistance,hotkeyInterval,isEditable,relatedMarkets,notesStorageKey:'zych.chart.notes.v1',panelStorageKey:'zych.chart.bottom.v1'}
+  function bottomPanelCollapsed(stored,height){if(stored==='collapsed')return true;if(stored==='open')return false;return Number(height)<900}
+  return{alertDistance,hotkeyInterval,isEditable,relatedMarkets,bottomPanelCollapsed,notesStorageKey:'zych.chart.notes.v1',panelStorageKey:'zych.chart.bottom.v1'}
 });
