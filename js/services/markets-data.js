@@ -1,0 +1,15 @@
+(function(global){
+  'use strict';
+  const number=value=>{if(value===null||value===undefined||typeof value==='string'&&!value.trim())return null;const parsed=Number(value);return Number.isFinite(parsed)?parsed:null};
+  const timestamp=(source,receivedAt=Date.now())=>number(source)??number(receivedAt);
+  const percent=(current,reference)=>{const last=number(current),open=number(reference);return last!==null&&open!==null&&open>0?(last-open)/open*100:null};
+  const snapshot=({price,change24h,quoteVolume24h,snapshotTimestamp,change=null,high=null,low=null,receivedAt=Date.now()})=>{
+    const normalized={price:number(price),change24h:number(change24h),quoteVolume24h:number(quoteVolume24h),snapshotTimestamp:timestamp(snapshotTimestamp,receivedAt)};
+    return{...normalized,lastPrice:normalized.price,changePercent:normalized.change24h,volume:normalized.quoteVolume24h,change:number(change),high:number(high),low:number(low)};
+  };
+  const item=(market,value={},watchlisted=false)=>({marketId:market.id||market.marketId,exchange:market.exchange,marketType:market.marketType,nativeSymbol:market.nativeSymbol||market.symbol,symbol:market.nativeSymbol||market.symbol,baseAsset:market.baseAsset,quoteAsset:market.quoteAsset,displaySymbol:market.displaySymbol,price:number(value.price??value.lastPrice),change24h:number(value.change24h??value.changePercent),quoteVolume24h:number(value.quoteVolume24h??value.volume),snapshotTimestamp:number(value.snapshotTimestamp),watchlisted:Boolean(watchlisted)});
+  const compareNumber=(key,direction='desc')=>(a,b)=>{const av=number(a[key]),bv=number(b[key]);if(av===null&&bv===null)return a.marketId.localeCompare(b.marketId);if(av===null)return 1;if(bv===null)return-1;return(direction==='asc'?av-bv:bv-av)||a.marketId.localeCompare(b.marketId)};
+  const rank=(items,key,direction='desc',limit=5)=>(items||[]).filter(value=>number(value[key])!==null).sort(compareNumber(key,direction)).slice(0,limit);
+  const breadth=items=>{const changes=(items||[]).map(value=>number(value.change24h)).filter(value=>value!==null),rising=changes.filter(value=>value>0).length,falling=changes.filter(value=>value<0).length,flat=changes.length-rising-falling,total=changes.length;return{rising,falling,flat,total,risingPct:total?rising/total*100:null,fallingPct:total?falling/total*100:null}};
+  const api={number,timestamp,percent,snapshot,item,compareNumber,rank,breadth};if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychMarketsData=api;
+})(typeof window!=='undefined'?window:globalThis);
