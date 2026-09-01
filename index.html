@@ -55,32 +55,35 @@
     <section id="watchlist-workspace" class="watchlist-workspace" hidden>
       <header class="watchlist-page-header">
         <div><h1><span data-i18n="watchlist.title">Watchlist</span> <span aria-hidden="true">☆</span></h1><p data-i18n="watchlist.subtitle">Track your favorite markets and spot opportunities in real time.</p></div>
-        <div class="watchlist-page-actions"><button id="add-watchlist-button" class="watchlist-primary-action" type="button"><span aria-hidden="true">＋</span><span data-i18n="watchlist.addSymbol">Add Symbol</span></button><button id="watchlist-import-button" type="button"><span aria-hidden="true">⇧</span><span data-i18n="watchlist.import">Import</span></button><button type="button" aria-label="More Watchlist actions" data-i18n-aria="watchlist.more">⋮</button></div>
+        <div class="watchlist-page-actions"><button id="add-watchlist-button" class="watchlist-primary-action" type="button"><span aria-hidden="true">＋</span><span data-i18n="watchlist.addSymbol">Add Symbol</span></button><button id="watchlist-import-button" type="button" disabled title="Import is not available"><span aria-hidden="true">⇧</span><span data-i18n="watchlist.import">Import</span></button><button type="button" disabled title="More actions are not available" aria-label="More Watchlist actions" data-i18n-aria="watchlist.more">⋮</button></div>
       </header>
       <section class="watchlist-summary" aria-label="Watchlist summary" data-i18n-aria="watchlist.summary">
         <article><span data-i18n="watchlist.totalInstruments">Total Instruments</span><strong id="watchlist-total">0</strong></article>
         <article><span data-i18n="watchlist.gainers24h">Gainers (24h)</span><strong id="watchlist-gainers">—</strong></article>
         <article><span data-i18n="watchlist.losers24h">Losers (24h)</span><strong id="watchlist-losers">—</strong></article>
         <article><span data-i18n="watchlist.alertsActive">Alerts Active</span><strong id="watchlist-alerts">0</strong></article>
-        <article><span data-i18n="watchlist.radarEvents">Radar Events</span><strong>—</strong><small data-i18n="common.unavailable">Unavailable</small></article>
+        <article><span data-i18n="watchlist.radarEvents">Radar Events</span><strong id="watchlist-radar-events">—</strong><small id="watchlist-radar-status" data-i18n="common.unavailable">Unavailable</small></article>
         <article><span data-i18n="watchlist.lastUpdate">Last Update</span><strong id="watchlist-updated">—</strong></article>
       </section>
       <section class="watchlist-shell">
         <div class="watchlist-controls" role="toolbar" aria-label="Watchlist controls" data-i18n-aria="watchlist.controls">
           <div class="watchlist-filter-tabs"><button class="active" type="button" data-watch-filter="all"><span data-i18n="filter.all">All</span> (<span data-watch-count>0</span>)</button><button type="button" data-watch-filter="spot"><span data-i18n="market.spot">Spot</span> (<span data-watch-spot-count>0</span>)</button><button type="button" data-watch-filter="perpetual" disabled><span data-i18n="market.perpetual">Perpetual</span> (0)</button></div>
           <label><span class="sr-only" data-i18n="filter.exchange">Exchange</span><select id="watchlist-exchange-filter"><option value="all" data-i18n="filter.allExchanges">All Exchanges</option><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option></select></label>
-          <label><span class="sr-only" data-i18n="watchlist.sector">Sector</span><select id="watchlist-sector-filter" disabled><option data-i18n="watchlist.allSectors">All Sectors</option></select></label>
+          <label><span class="sr-only" data-i18n="watchlist.sector">Sector</span><select id="watchlist-sector-filter" disabled title="Sector source not connected"><option>All Sectors · Source not connected</option></select></label>
           <div class="watchlist-control-spacer"></div>
-          <button type="button" data-watch-columns><span aria-hidden="true">▥</span> <span data-i18n="watchlist.columns">Columns</span></button>
+          <button type="button" data-watch-columns disabled title="Column settings are not available"><span aria-hidden="true">▥</span> <span data-i18n="watchlist.columns">Columns</span></button>
           <label><span class="sr-only" data-i18n="watchlist.sort">Sort</span><select id="watchlist-sort"><option value="default" data-i18n="watchlist.sortDefault">Sort: Default</option><option value="change-desc" data-i18n="watchlist.sortGainers">Sort: Gainers</option><option value="change-asc" data-i18n="watchlist.sortLosers">Sort: Losers</option></select></label>
-          <div class="watchlist-view-toggle" role="group" aria-label="Watchlist view" data-i18n-aria="watchlist.view"><button class="active" type="button" data-watch-view="table" aria-label="Table View" data-i18n-aria="watchlist.tableView">☷</button><button type="button" data-watch-view="tiles" aria-label="Compact Tile View" data-i18n-aria="watchlist.tileView">▦</button></div>
+          <div class="watchlist-view-toggle" role="group" aria-label="Watchlist view" data-i18n-aria="watchlist.view"><button class="active" type="button" data-watch-view="table" aria-label="Table View" data-i18n-aria="watchlist.tableView">☷</button><button type="button" data-watch-view="tiles" disabled title="Alternate table layout is not available" aria-label="Grid View unavailable" data-i18n-aria="watchlist.tileView">▦</button></div>
         </div>
         <div id="watchlist-table-view" class="watchlist-table-view">
           <div class="watchlist-table-head" role="row"><span>☆</span><span data-i18n="table.symbol">Symbol</span><span data-i18n="table.exchange">Exchange</span><span data-i18n="watchlist.marketType">Market Type</span><span>ZYCH Score</span><span data-i18n="watchlist.price">Price</span><span data-i18n="table.change24h">24h Change</span><span data-i18n="watchlist.highLow">24h High / Low</span><span data-i18n="table.volume24h">Volume (24h)</span><span data-i18n="watchlist.marketCap">Market Cap</span><span data-i18n="watchlist.sector">Sector</span><span data-i18n="watchlist.actions">Actions</span></div>
           <div id="watchlist-rows" class="watchlist-rows" aria-live="polite"></div>
         </div>
-        <div id="watchlist-tile-view" class="watchlist-tile-view" hidden></div>
         <footer class="watchlist-footer"><span id="watchlist-showing">—</span><span data-i18n="watchlist.personalizedRadar">Personalized Radar workspace</span></footer>
+      </section>
+      <section class="watchlist-compact" aria-labelledby="watchlist-compact-title">
+        <header class="watchlist-compact-header"><div><h2 id="watchlist-compact-title">COMPACT TILE VIEW <small>NEW</small></h2><p>Quick scan of your instruments</p></div><div class="watchlist-compact-controls"><span>Show: <b>24h Change</b>⌄</span><button type="button" disabled title="Tile editing is not available">Edit Tiles</button><div role="group" aria-label="Compact tile layout"><button class="active" type="button" aria-label="Dense tile layout">▦</button><button type="button" disabled aria-label="Alternate tile layout unavailable">▦</button></div></div></header>
+        <div id="watchlist-tile-view" class="watchlist-tile-view" aria-live="polite"></div>
       </section>
     </section>
 
