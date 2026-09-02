@@ -23,4 +23,17 @@ class OkxCatalogAdapter{
   // For Spot, OKX volCcy24h is volume in quote currency; vol24h is base units.
   async load(signal){const [info,tickers]=await Promise.all([json(this.fetchImpl,`${this.restBase}/public/instruments?instType=SPOT`,signal),json(this.fetchImpl,`${this.restBase}/market/tickers?instType=SPOT`,signal)]),instruments=this.unwrap(info),bySymbol=new Map(this.unwrap(tickers).map(row=>[row.instId,{quoteVolume24h:row.volCcy24h,bid:row.bidPx,ask:row.askPx}])),now=this.now();return instruments.map(row=>normalized(this.id,{symbol:row.instId,baseAsset:row.baseCcy,quoteAsset:row.quoteCcy,status:row.state},bySymbol.get(row.instId),now))}
 }
-module.exports={BinanceCatalogAdapter,BybitCatalogAdapter,OkxCatalogAdapter,spreadPct,normalized};
+class BingxCatalogAdapter{
+  constructor({restBase='https://open-api.bingx.com',fetchImpl=globalThis.fetch,now=Date.now}={}){this.id='bingx';Object.assign(this,{restBase,fetchImpl,now})}
+  unwrap(value,key){const rows=key?value?.data?.[key]:value?.data;if(value?.code!==0||!Array.isArray(rows))throw new Error(`BingX catalog API ${value?.code??'invalid'}`);return rows}
+  async load(signal){
+    const [info,tickers]=await Promise.all([json(this.fetchImpl,`${this.restBase}/openApi/spot/v1/common/symbols`,signal),json(this.fetchImpl,`${this.restBase}/openApi/spot/v1/ticker/24hr`,signal)]);
+    const bySymbol=new Map(this.unwrap(tickers).map(row=>[row.symbol,row])),now=this.now();
+    return this.unwrap(info,'symbols').map(row=>{const parts=/^([A-Z0-9]+)-([A-Z0-9]+)$/.exec(row.symbol);return {...row,baseAsset:row.baseAsset||parts?.[1],quoteAsset:row.quoteAsset||parts?.[2]}}).filter(row=>Number(row.status)===1&&row.apiStateBuy===true&&row.apiStateSell===true&&row.baseAsset&&row.quoteAsset&&row.symbol===`${row.baseAsset}-${row.quoteAsset}`).map(row=>{
+      const ticker=bySymbol.get(row.symbol),value=ticker?.quoteVolume,valid=value!=null&&value!==''&&Number.isFinite(Number(value))&&Number(value)>=0;
+      const result=normalized(this.id,{...row,status:'TRADING'},valid?{quoteVolume24h:value}:null,now);
+      return {...result,sourceStatus:row.status};
+    });
+  }
+}
+module.exports={BinanceCatalogAdapter,BybitCatalogAdapter,OkxCatalogAdapter,BingxCatalogAdapter,spreadPct,normalized};

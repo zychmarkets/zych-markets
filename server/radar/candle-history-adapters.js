@@ -1,10 +1,19 @@
 'use strict';
-const {normalizeBinanceCandle,normalizeBybitCandle,normalizeOkxCandle}=require('./candle-adapters.js');
+const {normalizeBinanceCandle,normalizeBybitCandle,normalizeOkxCandle,normalizeBingxCandle}=require('./candle-adapters.js');
 const maps={bybit:{'1m':'1','5m':'5','15m':'15'},okx:{'1m':'1m','5m':'5m','15m':'15m'}};
 async function request(fetchImpl,url,signal){const response=await fetchImpl(url,{signal});if(!response.ok)throw new Error(`Candle history HTTP ${response.status}`);return response.json()}
 class CandleHistoryAdapter{
   constructor({exchange,restBase,fetchImpl=globalThis.fetch,now=Date.now}={}){this.exchange=exchange;this.restBase=restBase;this.fetchImpl=fetchImpl;this.now=now}
-  async fetch(market,timeframe,{from,to,limit=300,signal}={}){const referenceTime=this.now();let rows;if(this.exchange==='binance'){const query=new URLSearchParams({symbol:market.symbol,interval:timeframe,limit:String(limit)});if(from!=null)query.set('startTime',String(from));if(to!=null)query.set('endTime',String(to));rows=await request(this.fetchImpl,`${this.restBase}/klines?${query}`,signal);return rows.map(row=>normalizeBinanceCandle(market,timeframe,row,{now:referenceTime,closed:true})).filter(row=>row.closeTime<referenceTime).sort((a,b)=>a.openTime-b.openTime)}
+  async bingx(market,timeframe,{from,to,limit=300,signal}={}){
+    if(!['1m','5m','15m'].includes(timeframe)||market.exchange!=='bingx')throw new Error('Unsupported BingX history request');
+    const referenceTime=this.now(),query=new URLSearchParams({symbol:market.symbol,interval:timeframe,limit:String(Math.min(limit,1440))});
+    if(from!=null)query.set('startTime',String(from));if(to!=null)query.set('endTime',String(to));
+    const value=await request(this.fetchImpl,`${this.restBase}/openApi/spot/v2/market/kline?${query}`,signal);
+    if(value?.code!==0||!Array.isArray(value.data))throw new Error('Invalid BingX candle history');
+    const rows=value.data.map(row=>normalizeBingxCandle(market,timeframe,row,{now:referenceTime,closed:Number(row[6])<referenceTime})).filter(row=>row.isClosed&&(from==null||row.openTime>=from)&&(to==null||row.openTime<=to));
+    return [...new Map(rows.map(row=>[row.openTime,row])).values()].sort((a,b)=>a.openTime-b.openTime);
+  }
+  async fetch(market,timeframe,{from,to,limit=300,signal}={}){if(this.exchange==='bingx')return this.bingx(market,timeframe,{from,to,limit,signal});if(!['binance','bybit','okx'].includes(this.exchange))throw new Error('Unsupported candle exchange');const referenceTime=this.now();let rows;if(this.exchange==='binance'){const query=new URLSearchParams({symbol:market.symbol,interval:timeframe,limit:String(limit)});if(from!=null)query.set('startTime',String(from));if(to!=null)query.set('endTime',String(to));rows=await request(this.fetchImpl,`${this.restBase}/klines?${query}`,signal);return rows.map(row=>normalizeBinanceCandle(market,timeframe,row,{now:referenceTime,closed:true})).filter(row=>row.closeTime<referenceTime).sort((a,b)=>a.openTime-b.openTime)}
     if(this.exchange==='bybit'){const query=new URLSearchParams({category:'spot',symbol:market.symbol,interval:maps.bybit[timeframe],limit:String(Math.min(limit,1000))});if(from!=null)query.set('start',String(from));if(to!=null)query.set('end',String(to));const value=await request(this.fetchImpl,`${this.restBase}/kline?${query}`,signal);if(Number(value.retCode)!==0)throw new Error(`Bybit API ${value.retCode}`);rows=value.result?.list||[];return rows.map(row=>normalizeBybitCandle(market,timeframe,row,{now:referenceTime,closed:true})).filter(row=>row.closeTime<referenceTime).sort((a,b)=>a.openTime-b.openTime)}
     const query=new URLSearchParams({instId:market.symbol,bar:maps.okx[timeframe],limit:String(Math.min(limit,300))});if(to!=null)query.set('after',String(Number(to)+1));const value=await request(this.fetchImpl,`${this.restBase}/market/history-candles?${query}`,signal);if(String(value.code)!=='0')throw new Error(`OKX API ${value.code}`);rows=value.data||[];return rows.map(row=>normalizeOkxCandle(market,timeframe,row,{now:referenceTime})).filter(row=>row.isClosed&&row.closeTime<referenceTime&&(from==null||row.openTime>=from)&&(to==null||row.openTime<=to)).sort((a,b)=>a.openTime-b.openTime)}
 }

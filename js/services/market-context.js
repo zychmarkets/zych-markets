@@ -1,6 +1,6 @@
 (function(global){
   'use strict';
-  const exchanges=new Set(['binance','bybit','okx']),marketTypes=new Set(['spot','perpetual']),timeframe=/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/;
+  const exchanges=new Set(['binance','bybit','okx','bingx']),marketTypes=new Set(['spot','perpetual']),timeframe=/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/;
   const create=value=>{if(!value||!exchanges.has(value.exchange)||!marketTypes.has(value.marketType)||typeof value.symbol!=='string'||!/^[A-Z0-9-]{1,30}$/.test(value.symbol))return null;const expected=`${value.exchange}:${value.marketType}:${value.symbol}`;if(value.marketId!==expected)return null;if(value.timeframe&&!timeframe.test(value.timeframe))return null;const stamp=value.eventTimestamp==null?null:Number(value.eventTimestamp);if(stamp!==null&&!(stamp>0))return null;return{marketId:expected,exchange:value.exchange,marketType:value.marketType,symbol:value.symbol,timeframe:value.timeframe||null,eventTimestamp:stamp}}
   const fromMarket=(market,extras={})=>create({marketId:`${market.exchange}:${market.marketType||'spot'}:${market.symbol}`,exchange:market.exchange,marketType:market.marketType||'spot',symbol:market.symbol,...extras});
   const fromTrigger=trigger=>create({marketId:`${trigger.exchange}:${trigger.marketType||'spot'}:${trigger.symbol}`,exchange:trigger.exchange,marketType:trigger.marketType||'spot',symbol:trigger.symbol,timeframe:trigger.timeframe||null,eventTimestamp:trigger.triggeredAt||trigger.timestamp});

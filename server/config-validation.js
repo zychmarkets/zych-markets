@@ -23,6 +23,7 @@ function validateConfig(config) {
   if(Object.values(config.radarScore?.caps||{}).reduce((sum,value)=>sum+value,0)>100)errors.push('SCORE_CAP_TOTAL_INVALID');
   if(config.production&&!['127.0.0.1','::1','localhost'].includes(config.host))errors.push('PRODUCTION_HOST_NOT_LOOPBACK');
   for(const origin of config.allowedOrigins||[])url('ALLOWED_ORIGIN',origin,HTTP_PROTOCOLS,errors);
+  url('BINGX_REST',config.bingxRestBase,HTTP_PROTOCOLS,errors);url('BINGX_WS',config.bingxWsBase,WS_PROTOCOLS,errors);
   for (const [name,value,protocols] of [['BINANCE_REST',config.binanceRestBase,HTTP_PROTOCOLS],['BYBIT_REST',config.bybitRestBase,HTTP_PROTOCOLS],['OKX_REST',config.okxRestBase,HTTP_PROTOCOLS],['BINANCE_WS',config.binanceWsBase,WS_PROTOCOLS],['BYBIT_WS',config.bybitWsBase,WS_PROTOCOLS],['OKX_WS',config.okxWsBusinessBase,WS_PROTOCOLS]]) url(name,value,protocols,errors);
   if (errors.length) { const error = new Error('Invalid production configuration'); error.code = 'INVALID_CONFIG'; error.reasonCodes = [...new Set(errors)]; throw error; }
   return config;

@@ -7,7 +7,7 @@ class HealthService {
     const current=this.lifecycle.snapshot();
     if (['STARTING','STOPPING','STOPPED'].includes(current.state)) return { ready:false, lifecycle:current.state, reasonCodes:current.reasonCodes.length?current.reasonCodes:[`APPLICATION_${current.state}`] };
     if (!this.universe || !this.radar?.running || this.eventPipeline?.stopped) return this.update(false,['RADAR_UNAVAILABLE']);
-    const coverage=this.universe.health?.().coverage, selected=coverage?.selectedMarketCount||this.radar.selected?.size||0, healthyExchanges=coverage?.healthyExchanges?.length||0, state=this.radar.store?.diagnostics?.()||{}, complete=state.COMPLETE||0, total=state.totalStateEntries||0, ratio=total?complete/total:0;
+    const catalogCoverage=this.universe.health?.().coverage,coverage=this.radar.coverage?.(catalogCoverage)||catalogCoverage, selected=coverage?.selectedMarketCount||this.radar.selected?.size||0, healthyExchanges=coverage?.healthyExchanges?.length||0, state=this.radar.store?.diagnostics?.()||{}, complete=state.COMPLETE||0, total=state.totalStateEntries||0, ratio=total?complete/total:0;
     if (!selected || !healthyExchanges) return this.update(false,['ESSENTIAL_PROCESSING_UNAVAILABLE']);
     const lastHealthy=this.radar.stats?.lastHealthyProcessingTimestamp;
     if (!complete || ratio<this.minimumCompleteRatio || !lastHealthy) return this.update(false,['RADAR_WARMING_UP']);

@@ -28,6 +28,8 @@ function loadConfig(env = process.env, root = path.resolve(__dirname, '..')) {
     okxRestBase: env.OKX_REST_BASE || 'https://www.okx.com/api/v5',
     okxWsPublicBase: env.OKX_WS_PUBLIC_BASE || 'wss://ws.okx.com:8443/ws/v5/public',
     okxWsBusinessBase: env.OKX_WS_BUSINESS_BASE || 'wss://ws.okx.com:8443/ws/v5/business',
+    bingxRestBase: env.BINGX_REST_BASE || 'https://open-api.bingx.com',
+    bingxWsBase: env.BINGX_WS_BASE || 'wss://open-api-ws.bingx.com/market',
     radarEnabled: env.RADAR_UNIVERSE_ENABLED !== 'false',
     radarIngestionEnabled: env.RADAR_INGESTION_ENABLED !== 'false',
     radarRefreshIntervalMs: integer(env.RADAR_UNIVERSE_REFRESH_MS, 60000, 5000, 3600000),

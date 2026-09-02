@@ -28,6 +28,7 @@
     }
     async request(market, timeframe, endTime, signal, limit = PAGE_LIMIT) {
       if (this.adapters?.[market.exchange]) return this.adapters[market.exchange].candles(market, timeframe, endTime, limit, signal);
+      if(market.exchange&&market.exchange!=='binance')throw new Error(`Chart adapter unavailable: ${market.exchange}`);
       const controller = new AbortController(), timer = setTimeout(() => controller.abort(new DOMException('History request timed out', 'TimeoutError')), this.requestTimeout);
       const abort = () => controller.abort(signal?.reason); signal?.addEventListener('abort', abort, { once: true });
       const end = Number.isFinite(endTime) ? `&endTime=${Math.floor(endTime)}` : '';
@@ -86,6 +87,7 @@
     }
     updateLive(market, timeframe, candle) {
       const entry = this.entry(market, timeframe), lastIndex = entry.candles.length - 1;
+      if(lastIndex>=0&&candle.time<entry.candles[lastIndex].time)return;
       if (lastIndex >= 0 && entry.candles[lastIndex].time === candle.time) entry.candles[lastIndex] = candle;
       else if (!entry.times.has(candle.time)) { entry.times.add(candle.time); entry.candles.push(candle); }
     }

@@ -12,10 +12,11 @@ test('Markets model retains canonical identity and exposes only honest market me
   const fixtures=[
     {exchange:'binance',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},
     {exchange:'bybit',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},
-    {exchange:'okx',symbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT'}
+    {exchange:'okx',symbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT'},
+    {exchange:'bingx',symbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT'}
   ];
   const rows=fixtures.map(value=>marketsData.item(instruments.normalize({...value,marketType:'spot'}),{price:10,change24h:0,quoteVolume24h:20,snapshotTimestamp:30}));
-  assert.deepEqual(rows.map(row=>row.marketId),['binance:spot:BTCUSDT','bybit:spot:BTCUSDT','okx:spot:BTC-USDT']);
+  assert.deepEqual(rows.map(row=>row.marketId),['binance:spot:BTCUSDT','bybit:spot:BTCUSDT','okx:spot:BTC-USDT','bingx:spot:BTC-USDT']);
   assert.deepEqual(rows[2],{marketId:'okx:spot:BTC-USDT',exchange:'okx',marketType:'spot',symbol:'BTC-USDT',nativeSymbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT',displaySymbol:'BTC/USDT',price:10,change24h:0,quoteVolume24h:20,snapshotTimestamp:30,watchlisted:false});
   assert.equal('marketCap' in rows[0],false);assert.equal('sparkline' in rows[0],false);assert.equal('history' in rows[0],false);assert.equal('eventChangePct' in rows[0],false);assert.equal('eventVolume' in rows[0],false);
 });
@@ -51,15 +52,64 @@ test('OKX retains native symbol, open24h semantics, quote turnover, and source t
   assert.equal(exchanges.market('okx','BTC-USDT','BTC','USDT','live').id,'okx:spot:BTC-USDT');
 });
 
+test('BingX catalog validates the envelope, preserves native pairs, and admits only verified tradable status',async()=>{
+  const payload={code:0,msg:'',data:{symbols:[
+    {symbol:'BTC-USDT',status:1,apiStateBuy:true,apiStateSell:true},
+    {symbol:'ETH-USDC',status:1,apiStateBuy:true,apiStateSell:true,baseAsset:'ETH',quoteAsset:'USDC'},
+    {symbol:'OFF-USDT',status:0,apiStateBuy:true,apiStateSell:true},
+    {symbol:'ACCESS-USDT',status:10,apiStateBuy:true,apiStateSell:true},
+    {symbol:'SUSPENDED-USDT',status:25,apiStateBuy:true,apiStateSell:true},
+    {symbol:'BUYOFF-USDT',status:1,apiStateBuy:false,apiStateSell:true},
+    {symbol:'SELLOFF-USDT',status:1,apiStateBuy:true,apiStateSell:false},
+    {symbol:'MALFORMED',status:1,apiStateBuy:true,apiStateSell:true},
+    {symbol:'BTC-USDT',status:1,apiStateBuy:true,apiStateSell:true}
+  ]}},adapter=new exchanges.BingxBrowserAdapter({fetchImpl:()=>response(payload)}),rows=await adapter.discover();
+  assert.deepEqual(rows.map(row=>row.id),['bingx:spot:BTC-USDT','bingx:spot:ETH-USDC']);
+  assert.deepEqual([rows[0].symbol,rows[0].baseAsset,rows[0].quoteAsset],['BTC-USDT','BTC','USDT']);
+  assert.deepEqual([rows[1].baseAsset,rows[1].quoteAsset],['ETH','USDC']);
+  await assert.rejects(()=>new exchanges.BingxBrowserAdapter({fetchImpl:()=>response({code:100500,msg:'busy',data:null})}).discover(),/BingX API 100500/);
+  for(const malformed of [{code:0,data:null},{code:0,data:{}},{code:0,data:{symbols:{}}}])await assert.rejects(()=>new exchanges.BingxBrowserAdapter({fetchImpl:()=>response(malformed)}).discover(),/malformed response/);
+});
+
+test('BingX tickers preserve percent semantics, quote turnover, source time, nulls, zeros, and canonical deduplication',async()=>{
+  const payload={code:0,msg:null,data:[
+    {symbol:'BTC-USDT',lastPrice:'77219.37',priceChange:'-1695.89',priceChangePercent:'-2.15%',volume:'2099.82',quoteVolume:'163998535.51',closeTime:'1788292453278'},
+    {symbol:'ZERO-USDT',lastPrice:'0',priceChange:'0',priceChangePercent:'0.00%',volume:'999',quoteVolume:'0',closeTime:'0'},
+    {symbol:'NULL-USDT',lastPrice:'',priceChangePercent:'',volume:'777',quoteVolume:'',closeTime:''},
+    {symbol:'BTC-USDT',lastPrice:'77219.37',priceChangePercent:'-2.15%',quoteVolume:'163998535.51',closeTime:'1788292453278'}
+  ]},adapter=new exchanges.BingxBrowserAdapter({fetchImpl:()=>response(payload),now:()=>444}),rows=await adapter.allSnapshots();
+  assert.equal(rows.length,3);assert.equal(rows[0].marketId,'bingx:spot:BTC-USDT');
+  assert.deepEqual([rows[0].price,rows[0].change24h,rows[0].quoteVolume24h,rows[0].snapshotTimestamp],[77219.37,-2.15,163998535.51,1788292453278]);
+  assert.deepEqual([rows[1].price,rows[1].change24h,rows[1].quoteVolume24h,rows[1].snapshotTimestamp],[0,0,0,0]);
+  assert.deepEqual([rows[2].price,rows[2].change24h,rows[2].quoteVolume24h,rows[2].snapshotTimestamp],[null,null,null,444]);
+  assert.notEqual(rows[2].quoteVolume24h,777);
+  const targeted=await adapter.snapshots([{id:'bingx:spot:BTC-USDT',symbol:'BTC-USDT'}]);assert.deepEqual(Object.keys(targeted),['bingx:spot:BTC-USDT']);
+  await assert.rejects(()=>new exchanges.BingxBrowserAdapter({fetchImpl:()=>response({code:0,data:{}})}).allSnapshots(),/malformed response/);
+});
+
+test('BingX Chart transport rejects missing exact Spot identity',async()=>{
+  const adapter=new exchanges.BingxBrowserAdapter();
+  await assert.rejects(()=>adapter.candles(),/Invalid BingX Spot market/);
+  assert.throws(()=>adapter.socket(),/Invalid BingX Spot market/);
+});
+
+test('BingX browser transport can target the two narrow same-origin proxy routes',async()=>{
+  const urls=[],adapter=new exchanges.BingxBrowserAdapter({restBase:'/api/markets/bingx',catalogPath:'/catalog',tickerPath:'/tickers',fetchImpl:async url=>{urls.push(url);return response(url.endsWith('/catalog')?{code:0,data:{symbols:[]}}:{code:0,data:[]})}});
+  await adapter.discover();
+  await adapter.allSnapshots();
+  assert.deepEqual(urls,['/api/markets/bingx/catalog','/api/markets/bingx/tickers']);
+});
+
 test('search is separator-insensitive, includes USDC base and quote results, and preserves exchanges',()=>{
   const rows=[
     {exchange:'binance',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},
     {exchange:'bybit',marketType:'spot',symbol:'BTCUSDT',baseAsset:'BTC',quoteAsset:'USDT'},
     {exchange:'okx',marketType:'spot',symbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT'},
+    {exchange:'bingx',marketType:'spot',symbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT'},
     {exchange:'binance',marketType:'spot',symbol:'USDCUSDT',baseAsset:'USDC',quoteAsset:'USDT'},
     {exchange:'okx',marketType:'spot',symbol:'BTC-USDC',baseAsset:'BTC',quoteAsset:'USDC'}
   ];
-  for(const query of ['BTC','BTCUSDT','BTC-USDT','BTC/USDT'])assert.deepEqual(instruments.search(rows,query).slice(0,3).map(row=>row.exchange),['binance','bybit','okx']);
+  for(const query of ['BTC','BTCUSDT','BTC-USDT','BTC/USDT'])assert.deepEqual(instruments.search(rows,query).slice(0,4).map(row=>row.exchange),['binance','bingx','bybit','okx']);
   const usdc=instruments.search(rows,'USDC');assert.equal(usdc.some(row=>row.baseAsset==='USDC'),true);assert.equal(usdc.some(row=>row.quoteAsset==='USDC'),true);
   assert.equal(new Set(instruments.search(rows,'BTC').map(row=>row.id)).size,instruments.search(rows,'BTC').length);
 });

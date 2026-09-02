@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>BingX public transport verification</title>
+<h1>BingX Part B — public transport verification</h1>
+<p>No owner Watchlist or alerts are accessed. Public BTC-USDT only.</p>
+<button id="start">Verify REST + WebSocket</button><button id="reconnect">Reconnect</button><button id="stop">Stop</button><pre id="results"></pre>
+<script src="../js/services/markets-data.js"></script><script src="../js/exchanges/browser-exchange-adapters.js"></script>
+<script>
+const output=document.querySelector('#results'),market={id:'bingx:spot:BTC-USDT',exchange:'bingx',marketType:'spot',symbol:'BTC-USDT'};
+const log=(kind,value)=>{output.textContent+=JSON.stringify({at:new Date().toISOString(),kind,value})+'\n';};
+let socket,updates=0,run=0;
+const adapter=new ZychExchanges.BingxBrowserAdapter({historyBase:'/api/markets/bingx',socketFactory:url=>{const ws=new WebSocket(url),send=ws.send.bind(ws);ws.send=value=>{if(value==='Pong')log('pong',value);send(value);};return ws;},decodeFrame:async frame=>{const text=await ZychExchanges.decodeBingxFrame(frame);if(!text.includes('"dataType"'))log(typeof frame==='string'?'text':'gzip',text);return text;}});
+const connect=()=>{socket?.close();const token=++run;log('connecting',token);socket=adapter.socket(market,'1m',{open:()=>log('open',token),status:s=>log('status',s),error:e=>log('error',e.message),close:()=>log('closed',token),candle:c=>{if(token!==run)return;if(++updates<=5||updates%20===0)log('candle',c);}});};
+document.querySelector('#start').onclick=async()=>{for(const interval of ['1m','5m','1h','1M'])try{const rows=await adapter.candles(market,interval,null,3);log('REST '+interval,rows);}catch(e){log('REST error',e.message);}connect();};
+document.querySelector('#reconnect').onclick=connect;document.querySelector('#stop').onclick=()=>socket?.close();addEventListener('beforeunload',()=>socket?.close());
+</script>

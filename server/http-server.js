@@ -5,17 +5,41 @@ const path = require('node:path');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUBLIC_FILES = new Set(['index.html','app.js','style.css','sw.js']);
-const CSP = "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; connect-src 'self' https://api.binance.com https://api.bybit.com https://www.okx.com wss://stream.binance.com:9443 wss://stream.bybit.com wss://ws.okx.com:8443; img-src 'self' data:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+const CSP = "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; connect-src 'self' https://api.binance.com https://api.bybit.com https://www.okx.com wss://stream.binance.com:9443 wss://stream.bybit.com wss://ws.okx.com:8443 wss://open-api-ws.bingx.com; img-src 'self' data:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 const send = (res, status, value) => { const body = JSON.stringify(value); res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body), 'cache-control': 'no-store' }); res.end(body); };
 const error = (res, status, code, message) => send(res, status, { error: { code, message } });
-const validRadarFilter=(key,value)=>({exchange:/^(binance|bybit|okx)$/,marketType:/^(spot|perpetual)$/,symbol:/^[A-Z0-9-]{1,30}$/,eventType:/^[A-Z0-9_-]{1,60}$/,timeframe:/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/}[key].test(value));
+const validRadarFilter=(key,value)=>({exchange:/^(binance|bybit|okx|bingx)$/,marketType:/^(spot|perpetual)$/,symbol:/^[A-Z0-9-]{1,30}$/,eventType:/^[A-Z0-9_-]{1,60}$/,timeframe:/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/}[key].test(value));
 const loopback=value=>['127.0.0.1','::1','::ffff:127.0.0.1'].includes(value);
 const effectiveClient=req=>{const remote=req.socket.remoteAddress||'';if(!loopback(remote))return remote;return String(req.headers['x-forwarded-for']||remote).split(',')[0].trim()};
 const internalAllowed=(req,config)=>config.internalDiagnosticsEnabled===true||loopback(effectiveClient(req));
-const radarEventsMeta=({health,radar,qualification,eventStore,universe,now=Date.now})=>{const lifecycle=health?.lifecycle?.snapshot?.()||null,coverage=universe?.health?.()?.coverage||{};return{generatedAt:now(),lifecycle:lifecycle?.state||'DEGRADED',reasonCodes:lifecycle?.reasonCodes||['RADAR_UNAVAILABLE'],lastHealthyProcessingTimestamp:radar?.stats?.lastHealthyProcessingTimestamp??null,lastPublishedEventTimestamp:qualification?.stats?.lastPublishedEventTimestamp??null,storeSize:eventStore?.size||0,coverage:{status:coverage.status||'UNAVAILABLE',expectedExchanges:Array.isArray(coverage.expectedExchanges)?coverage.expectedExchanges:[],healthyExchanges:Array.isArray(coverage.healthyExchanges)?coverage.healthyExchanges:[]}}};
+const radarEventsMeta=({health,radar,qualification,eventStore,universe,now=Date.now})=>{const lifecycle=health?.lifecycle?.snapshot?.()||null,coverage=radar?.coverage?.(universe?.health?.()?.coverage)||universe?.health?.()?.coverage||{};return{generatedAt:now(),lifecycle:lifecycle?.state||'DEGRADED',reasonCodes:lifecycle?.reasonCodes||['RADAR_UNAVAILABLE'],lastHealthyProcessingTimestamp:radar?.stats?.lastHealthyProcessingTimestamp??null,lastPublishedEventTimestamp:qualification?.stats?.lastPublishedEventTimestamp??null,storeSize:eventStore?.size||0,coverage:{status:coverage.status||'UNAVAILABLE',expectedExchanges:Array.isArray(coverage.expectedExchanges)?coverage.expectedExchanges:[],healthyExchanges:Array.isArray(coverage.healthyExchanges)?coverage.healthyExchanges:[]}}};
 const staticFile=(root,pathname)=>{let decoded;try{decoded=decodeURIComponent(pathname)}catch{return null}if(decoded.includes('\0')||decoded.includes('\\')||decoded.includes('//'))return null;const segments=decoded.split('/').filter(Boolean);if(segments.some(item=>item==='.'||item==='..'))return null;const relative=segments.length?segments.join('/'):'index.html';if(!PUBLIC_FILES.has(relative)&&!/^js\/(alerts|exchanges|services|notifications)\/[A-Za-z0-9._-]+\.js$/.test(relative))return null;const file=path.resolve(root,relative);return file.startsWith(`${root}${path.sep}`)?file:null};
 const applySecurityHeaders=res=>{res.setHeader('x-content-type-options','nosniff');res.setHeader('referrer-policy','strict-origin-when-cross-origin');res.setHeader('x-frame-options','DENY');res.setHeader('content-security-policy',CSP)};
 const applyCors=(req,res,config)=>{const origin=req.headers.origin;if(!origin)return true;let own=false,localDevelopment=false;try{const parsed=new URL(origin);own=parsed.host===req.headers.host;localDevelopment=config.production!==true&&['localhost','127.0.0.1'].includes(parsed.hostname)}catch{localDevelopment=config.production!==true&&origin==='null'}const allowed=own||localDevelopment||config.allowedOrigins?.includes(origin);if(!allowed)return false;res.setHeader('access-control-allow-origin',origin);res.setHeader('vary','Origin');res.setHeader('access-control-allow-methods','GET,POST,PATCH,DELETE,OPTIONS');res.setHeader('access-control-allow-headers','content-type');return true};
+const BINGX_PUBLIC_PATHS=Object.freeze({catalog:'/openApi/spot/v1/common/symbols',tickers:'/openApi/spot/v1/ticker/24hr'});
+function bingxCandleQuery(params) {
+  const allowed=new Set(['symbol','interval','limit','startTime','endTime']),query=new URLSearchParams(params);
+  for(const key of query.keys())if(!allowed.has(key)||query.getAll(key).length!==1)throw new Error('Invalid BingX candle parameter');
+  if(!/^[A-Z0-9]{1,20}-[A-Z0-9]{1,20}$/.test(query.get('symbol')||'')||!['1m','5m','15m','30m','1h','4h','1d','1w','1M'].includes(query.get('interval')))throw new Error('Invalid BingX candle market or interval');
+  const limit=query.get('limit')||'1000';if(!/^\d+$/.test(limit)||Number(limit)<1||Number(limit)>1440)throw new Error('Invalid BingX candle limit');query.set('limit',limit);
+  for(const key of ['startTime','endTime'])if(query.has(key)&&(!/^\d+$/.test(query.get(key))||!Number.isSafeInteger(Number(query.get(key)))))throw new Error('Invalid BingX candle timestamp');
+  return query.toString();
+}
+function createBingxPublicProxy({fetchImpl=globalThis.fetch,base='https://open-api.bingx.com',timeoutMs=8000,cacheTtlMs=5000,now=Date.now}={}){
+  const cache=new Map(),pending=new Map();
+  return async(key,params)=>{
+    if(key!=='candles'&&!Object.hasOwn(BINGX_PUBLIC_PATHS,key))throw Object.assign(new Error('BingX proxy path is not allowed'),{code:'BINGX_PATH_NOT_ALLOWED'});
+    const history=key==='candles',query=history?bingxCandleQuery(params):'',cacheKey=history?`${key}?${query}`:key;
+    const cached=cache.get(cacheKey);if(cached&&now()-cached.storedAt<cacheTtlMs)return cached.value;
+    if(pending.has(cacheKey))return pending.get(cacheKey);
+    const request=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{
+      const route=history?`/openApi/spot/v2/market/kline?${query}`:BINGX_PUBLIC_PATHS[key];
+      const response=await fetchImpl(`${base}${route}`,{signal:controller.signal});if(!response.ok)throw Object.assign(new Error(`BingX upstream HTTP ${response.status}`),{status:response.status});
+      const value=await response.json(),rows=key==='catalog'?value?.data?.symbols:value?.data;if(Number(value?.code)!==0||!Array.isArray(rows))throw new Error('BingX upstream returned an invalid envelope');
+      if(!history)cache.set(cacheKey,{storedAt:now(),value});return value;
+    }finally{clearTimeout(timer);pending.delete(cacheKey);}})();pending.set(cacheKey,request);return request;
+  };
+}
 
 async function body(req, limit = 32768) {
   const chunks = []; let size = 0;
@@ -24,8 +48,8 @@ async function body(req, limit = 32768) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { const failure = new Error('Malformed JSON'); failure.code = 'MALFORMED_JSON'; throw failure; }
 }
 
-function createHttpServer({ runner, storage, notifier, universe = null, eventStore = null, eventPipeline = null, radar = null, qualification = null, breadth = null, scorePolicy = null, interpretationPolicy = null, health = null, metrics = null, config, logger, startedAt = Date.now() }) {
-  let accepting = true;const sockets=new Set();
+function createHttpServer({ runner, storage, notifier, universe = null, eventStore = null, eventPipeline = null, radar = null, qualification = null, breadth = null, scorePolicy = null, interpretationPolicy = null, health = null, metrics = null, bingxProxy = null, config, logger, startedAt = Date.now() }) {
+  let accepting = true;const sockets=new Set(),bingxPublic=bingxProxy||createBingxPublicProxy();
   const server = http.createServer(async (req, res) => {
     res.setTimeout(15000);
     applySecurityHeaders(res);
@@ -38,8 +62,13 @@ function createHttpServer({ runner, storage, notifier, universe = null, eventSto
       if (pathname.startsWith('/api/')) {
         if (!accepting) return error(res, 503, 'SHUTTING_DOWN', 'Server is shutting down.');
         if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, { status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } });
+        if ((pathname === '/api/markets/bingx/catalog' || pathname === '/api/markets/bingx/tickers') && req.method === 'GET') {try{return send(res,200,await bingxPublic(pathname.endsWith('/catalog')?'catalog':'tickers'))}catch(failure){logger.warn('bingx_public_proxy_failed',{endpoint:pathname.endsWith('/catalog')?'catalog':'tickers',name:failure.name,message:failure.message});return error(res,502,'BINGX_UPSTREAM_UNAVAILABLE','BingX public market data is unavailable.')}}
+        if(pathname==='/api/markets/bingx/candles'&&req.method==='GET'){
+          try{bingxCandleQuery(url.searchParams);}catch{return error(res,400,'INVALID_BINGX_CANDLES','Invalid BingX candle parameters.');}
+          try{return send(res,200,await bingxPublic('candles',url.searchParams));}catch(failure){logger.warn('bingx_public_proxy_failed',{endpoint:'candles',name:failure.name,message:failure.message});return error(res,502,'BINGX_UPSTREAM_UNAVAILABLE','BingX public candle history is unavailable.');}
+        }
         if (pathname === '/api/radar/universe' && req.method === 'GET') {if(!universe)return error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');const diagnostics=url.searchParams.get('diagnostics')==='true',includeExcluded=url.searchParams.get('includeExcluded')==='true';if((diagnostics||includeExcluded)&&!internalAllowed(req,config))return error(res,404,'NOT_FOUND','Endpoint not found.');if(includeExcluded&&!diagnostics)return error(res,400,'DIAGNOSTICS_REQUIRED','Excluded markets require diagnostics=true.');const limit=Number(url.searchParams.get('excludedLimit')||100),offset=Number(url.searchParams.get('excludedOffset')||0);if(!Number.isInteger(limit)||limit<1||limit>200||!Number.isInteger(offset)||offset<0)return error(res,400,'INVALID_PAGINATION','excludedLimit must be 1..200 and excludedOffset must be non-negative.');return send(res,200,universe.getSnapshot({includeExcluded,excludedLimit:limit,excludedOffset:offset}))}
-        if (pathname === '/api/radar/universe/health' && req.method === 'GET') return universe ? send(res,200,{...universe.health(),eventPipeline:eventPipeline?.diagnostics()||null}) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
+        if (pathname === '/api/radar/universe/health' && req.method === 'GET') return universe ? send(res,200,{...universe.health(),coverage:radar?.coverage?.(universe.health().coverage)||universe.health().coverage,eventPipeline:eventPipeline?.diagnostics()||null}) : error(res,503,'RADAR_UNAVAILABLE','Market Universe is not initialized.');
         if (pathname === '/api/radar/health' && req.method === 'GET') {if(!internalAllowed(req,config))return error(res,404,'NOT_FOUND','Endpoint not found.');return universe ? send(res,200,{process:metrics?.sample?.()||null,lifecycle:health?.lifecycle?.snapshot?.()||null,universe:universe.health(),ingestion:radar?.diagnostics()||{enabled:false,running:false},marketState:radar?.store?.diagnostics()||{totalStateEntries:0,COMPLETE:0,WARMING_UP:0,STALE:0,DEGRADED:0},recovery:radar?.recovery?.diagnostics()||null,detectors:radar?.registry?.diagnostics()||[],qualification:qualification?.diagnostics()||null,breadth:breadth?.diagnostics()||{enabled:false,dataQuality:'UNAVAILABLE'},scoring:{...(scorePolicy?.diagnostics()||{enabled:false}),interpretation:interpretationPolicy?.diagnostics()||null},unifiedEvents:{published:qualification?.stats?.productionUnifiedEvents||0,storeSize:eventStore?.size||0,lastPublishedEventTimestamp:qualification?.stats?.lastPublishedEventTimestamp||null},eventPipeline:eventPipeline?.diagnostics()||null}) : error(res,503,'RADAR_UNAVAILABLE','Radar is not initialized.')}
         if (pathname === '/api/radar/breadth' && req.method === 'GET') return breadth?.getLatest()?send(res,200,{breadth:breadth.getLatest()}):error(res,503,'BREADTH_NOT_READY','Breadth snapshot is not ready.');
         if (pathname === '/api/radar/context' && req.method === 'GET') return breadth?.getLatestContext()?send(res,200,{context:breadth.getLatestContext()}):error(res,503,'CONTEXT_NOT_READY','Market context is not ready.');
@@ -76,4 +105,4 @@ function createHttpServer({ runner, storage, notifier, universe = null, eventSto
   server.requestTimeout=15000;server.headersTimeout=10000;server.keepAliveTimeout=5000;
   return { server, stopAccepting: () => { accepting = false; }, forceClose:()=>{server.closeAllConnections?.();for(const socket of sockets)socket.destroy()}, sockets };
 }
-module.exports = { createHttpServer, staticFile, applyCors, internalAllowed, radarEventsMeta };
+module.exports = { createHttpServer, createBingxPublicProxy, staticFile, applyCors, internalAllowed, radarEventsMeta };
