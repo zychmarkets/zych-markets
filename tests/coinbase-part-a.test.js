@@ -95,13 +95,13 @@ test('Coinbase Markets rows, breadth and gainers/losers work while exact volume 
 test('Coinbase invalid Chart requests fail without network calls; Alerts admit Coinbase while Radar remains four-exchange',async()=>{
   let calls=0;const adapter=new CoinbaseBrowserAdapter({fetchImpl:()=>{calls++;throw Error('unexpected request')}});
   await assert.rejects(adapter.candles(),/Unsupported Coinbase interval/);assert.throws(()=>adapter.socket(),/Unsupported Coinbase interval/);assert.equal(calls,0);
-  assert.deepEqual(core.SUPPORTED_EXCHANGES,['binance','bybit','okx','bingx','coinbase']);assert.ok(core.createAlert({exchange:'coinbase',marketType:'spot',symbol:'BTC-USD',baseAsset:'BTC',quoteAsset:'USD',condition:{type:'price',operator:'above',value:101}},{id:'coinbase-allowed'}));
+  assert.deepEqual(core.SUPPORTED_EXCHANGES,['binance','bybit','okx','bingx','coinbase','kraken']);assert.ok(core.createAlert({exchange:'coinbase',marketType:'spot',symbol:'BTC-USD',baseAsset:'BTC',quoteAsset:'USD',condition:{type:'price',operator:'above',value:101}},{id:'coinbase-allowed'}));
   const schema=require('../server/radar/event-schema.js');assert.deepEqual(schema.EXCHANGES,['binance','bybit','okx','bingx']);
-  assert.deepEqual(workspace.exchanges,['binance','bybit','okx','bingx','coinbase']);
+  assert.deepEqual(workspace.exchanges,['binance','bybit','okx','bingx','coinbase','kraken']);
 });
 test('Coinbase UI keeps one global selector and visibly guards metrics and Chart boundaries',()=>{
   const html=fs.readFileSync(require.resolve('../index.html'),'utf8'),app=fs.readFileSync(require.resolve('../app.js'),'utf8');
-  assert.equal((html.match(/id="active-exchange-selector"/g)||[]).length,1);assert.equal((html.match(/data-active-exchange-option=/g)||[]).length,5);
+  assert.equal((html.match(/id="active-exchange-selector"/g)||[]).length,1);assert.equal((html.match(/data-active-exchange-option=/g)||[]).length,6);
   assert.match(html,/data-active-exchange-option="coinbase">Coinbase/);assert.doesNotMatch(html.match(/id="radar-exchange-filter"[\s\S]*?<\/select>/)[0],/coinbase/);
   assert.match(app,/Exact 24h quote volume unavailable/);assert.match(app,/Snapshot received/);assert.match(app,/Partial metrics/);assert.match(app,/24h High/);assert.match(app,/24h Low/);assert.match(app,/capabilities\?\.chart===false/);
 });

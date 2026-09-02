@@ -13,7 +13,7 @@
   const ALERT_TYPES = Object.freeze(['price', 'movement', 'volume']);
   const ALERT_MODES = Object.freeze(['once', 'recurring']);
   const ALERT_STATUSES = Object.freeze(['active', 'paused', 'triggered']);
-  const SUPPORTED_EXCHANGES = Object.freeze(['binance', 'bybit', 'okx', 'bingx', 'coinbase']);
+  const SUPPORTED_EXCHANGES = Object.freeze(['binance', 'bybit', 'okx', 'bingx', 'coinbase', 'kraken']);
   const finite = value => value !== null && value !== '' && Number.isFinite(Number(value));
   const positive = value => finite(value) && Number(value) > 0;
   const safeTicker = value => typeof value === 'string' && /^[A-Z0-9]{1,20}$/.test(value);

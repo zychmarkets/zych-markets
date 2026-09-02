@@ -15,7 +15,7 @@
         <a class="radar-nav active" href="#radar" data-workspace-view="radar"><span class="nav-icon" aria-hidden="true">◎</span><span data-i18n="nav.radar">Radar</span></a><a href="#watchlist" data-workspace-view="watchlist"><span class="nav-icon" aria-hidden="true">☆</span><span data-i18n="nav.watchlist">Watchlist</span></a><a href="#chart" data-workspace-view="chart"><span class="nav-icon" aria-hidden="true">▥</span><span data-i18n="nav.chart">Chart</span></a><a href="#markets" data-workspace-view="markets"><span class="nav-icon" aria-hidden="true">▥</span><span data-i18n="nav.markets">Markets</span></a>
       </nav>
       <div class="header-actions">
-        <div class="global-exchange-shell global-exchange-topbar"><button id="active-exchange-selector" class="active-exchange-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Change active exchange"><span id="active-exchange-button-label">Binance</span>⌄</button><div id="active-exchange-menu" class="dropdown-menu global-exchange-menu" role="menu" hidden><button class="dropdown-item active" type="button" data-active-exchange-option="binance">Binance</button><button class="dropdown-item" type="button" data-active-exchange-option="bybit">Bybit</button><button class="dropdown-item" type="button" data-active-exchange-option="okx">OKX</button><button class="dropdown-item" type="button" data-active-exchange-option="bingx">BingX</button><button class="dropdown-item" type="button" data-active-exchange-option="coinbase">Coinbase</button></div></div>
+        <div class="global-exchange-shell global-exchange-topbar"><button id="active-exchange-selector" class="active-exchange-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Change active exchange"><span id="active-exchange-button-label">Binance</span>⌄</button><div id="active-exchange-menu" class="dropdown-menu global-exchange-menu" role="menu" hidden><button class="dropdown-item active" type="button" data-active-exchange-option="binance">Binance</button><button class="dropdown-item" type="button" data-active-exchange-option="bybit">Bybit</button><button class="dropdown-item" type="button" data-active-exchange-option="okx">OKX</button><button class="dropdown-item" type="button" data-active-exchange-option="bingx">BingX</button><button class="dropdown-item" type="button" data-active-exchange-option="coinbase">Coinbase</button><button class="dropdown-item" type="button" data-active-exchange-option="kraken">Kraken</button></div></div>
         <div class="search-shell">
           <label class="coin-search"><span aria-hidden="true">⌕</span><input id="coin-search" type="search" placeholder="Search markets…" aria-label="Global symbol search" data-i18n-placeholder="search.placeholder" data-i18n-aria="search.label" autocomplete="off" aria-expanded="false" aria-controls="search-results"><kbd>/</kbd></label>
           <div id="search-results" class="dropdown-menu search-results" role="listbox" hidden></div>
@@ -69,7 +69,7 @@
       <section class="watchlist-shell">
         <div class="watchlist-controls" role="toolbar" aria-label="Watchlist controls" data-i18n-aria="watchlist.controls">
           <div class="watchlist-filter-tabs"><button class="active" type="button" data-watch-filter="all"><span data-i18n="filter.all">All</span> (<span data-watch-count>0</span>)</button><button type="button" data-watch-filter="spot"><span data-i18n="market.spot">Spot</span> (<span data-watch-spot-count>0</span>)</button><button type="button" data-watch-filter="perpetual" disabled><span data-i18n="market.perpetual">Perpetual</span> (0)</button></div>
-          <label><span class="sr-only" data-i18n="filter.exchange">Exchange</span><select id="watchlist-exchange-filter"><option value="all" data-i18n="filter.allExchanges">All Exchanges</option><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option><option value="bingx">BingX</option><option value="coinbase">Coinbase</option></select></label>
+          <label><span class="sr-only" data-i18n="filter.exchange">Exchange</span><select id="watchlist-exchange-filter"><option value="all" data-i18n="filter.allExchanges">All Exchanges</option><option value="binance">Binance</option><option value="bybit">Bybit</option><option value="okx">OKX</option><option value="bingx">BingX</option><option value="coinbase">Coinbase</option><option value="kraken">Kraken</option></select></label>
           <label><span class="sr-only" data-i18n="watchlist.sector">Sector</span><select id="watchlist-sector-filter" disabled title="Sector source not connected"><option>All Sectors · Source not connected</option></select></label>
           <div class="watchlist-control-spacer"></div>
           <button type="button" data-watch-columns disabled title="Column settings are not available"><span aria-hidden="true">▥</span> <span data-i18n="watchlist.columns">Columns</span></button>
@@ -163,6 +163,9 @@
   <script src="js/services/markets-data.js"></script>
   <script src="js/exchanges/coinbase-public.js"></script>
   <script src="js/exchanges/coinbase-chart.js"></script>
+  <script src="js/exchanges/kraken-public.js"></script>
+  <script src="js/exchanges/kraken-chart.js"></script>
+  <script src="js/exchanges/kraken-browser.js"></script>
   <script src="js/exchanges/browser-exchange-adapters.js"></script>
   <script src="js/services/exchange-workspace.js"></script>
   <script src="js/services/market-context.js"></script>

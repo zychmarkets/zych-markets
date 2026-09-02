@@ -687,6 +687,8 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 .connection-bar [data-status="live"] i,.market-status[data-status="live"] i,#markets-data-status[data-status="current"] i{background:var(--color-status-ready)}
 .connection-bar [data-status="connecting"] i,.connection-bar [data-status="reconnecting"] i,.market-status[data-status="connecting"] i,.market-status[data-status="reconnecting"] i{background:var(--color-status-warming)}
 .connection-bar [data-status="offline"] i,.market-status[data-status="offline"] i,#markets-data-status[data-status="unavailable"] i{background:var(--color-status-offline)}
+.connection-bar [data-status="unavailable"] i,.market-status[data-status="unavailable"] i{background:var(--text-muted);box-shadow:none}
+.connection-bar [data-status="waiting"] i,.market-status[data-status="waiting"] i,.connection-bar [data-status="subscribing"] i,.market-status[data-status="subscribing"] i{background:var(--color-status-warming);box-shadow:none}
 #markets-data-status[data-status="partial"] i{background:var(--color-status-partial)}
 .radar-data-state[data-status="loading"],.radar-preparing[data-status="loading"],.radar-page[data-radar-status="loading"] .radar-metrics .neutral-metric{color:var(--color-status-info)}
 .radar-data-state[data-status="warming_up"],.radar-preparing[data-status="warming_up"],.radar-page[data-radar-status="warming_up"] .radar-metrics .neutral-metric{color:var(--color-status-warming)}

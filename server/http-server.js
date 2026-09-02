@@ -3,10 +3,11 @@ const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {createCoinbasePublicProxy,createCoinbaseCandleProxy,candleQuery}=require('./coinbase-public-proxy.js');
+const {productCapabilities}=require('./product-capabilities.js');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUBLIC_FILES = new Set(['index.html','app.js','style.css','sw.js']);
-const CSP = "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; connect-src 'self' https://api.binance.com https://api.bybit.com https://www.okx.com wss://stream.binance.com:9443 wss://stream.bybit.com wss://ws.okx.com:8443 wss://open-api-ws.bingx.com wss://advanced-trade-ws.coinbase.com; img-src 'self' data:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+const CSP = "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; connect-src 'self' https://api.binance.com https://api.bybit.com https://www.okx.com wss://stream.binance.com:9443 wss://stream.bybit.com wss://ws.okx.com:8443 wss://open-api-ws.bingx.com wss://advanced-trade-ws.coinbase.com https://api.kraken.com wss://ws.kraken.com; img-src 'self' data:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 const send = (res, status, value) => { const body = JSON.stringify(value); res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body), 'cache-control': 'no-store' }); res.end(body); };
 const error = (res, status, code, message) => send(res, status, { error: { code, message } });
 const validRadarFilter=(key,value)=>({exchange:/^(binance|bybit|okx|bingx)$/,marketType:/^(spot|perpetual)$/,symbol:/^[A-Z0-9-]{1,30}$/,eventType:/^[A-Z0-9_-]{1,60}$/,timeframe:/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/}[key].test(value));
@@ -72,7 +73,7 @@ function createHttpServer({ runner, storage, notifier, universe = null, eventSto
       if(pathname==='/health/ready'&&req.method==='GET'){const value=health?.ready?.()||{status:'not_ready',lifecycle:'STARTING',reasonCodes:['HEALTH_NOT_INITIALIZED'],timestamp:Date.now()};return send(res,value.status==='ready'?200:503,value)}
       if (pathname.startsWith('/api/')) {
         if (!accepting) return error(res, 503, 'SHUTTING_DOWN', 'Server is shutting down.');
-        if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, { status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } });
+        if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, { status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), capabilities: productCapabilities(), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } });
         if ((pathname === '/api/markets/bingx/catalog' || pathname === '/api/markets/bingx/tickers') && req.method === 'GET') {try{return send(res,200,await bingxPublic(pathname.endsWith('/catalog')?'catalog':'tickers'))}catch(failure){logger.warn('bingx_public_proxy_failed',{endpoint:pathname.endsWith('/catalog')?'catalog':'tickers',name:failure.name,message:failure.message});return error(res,502,'BINGX_UPSTREAM_UNAVAILABLE','BingX public market data is unavailable.')}}
         if(pathname==='/api/markets/bingx/candles'&&req.method==='GET'){
           try{bingxCandleQuery(url.searchParams);}catch{return error(res,400,'INVALID_BINGX_CANDLES','Invalid BingX candle parameters.');}

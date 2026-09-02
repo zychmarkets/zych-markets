@@ -10,7 +10,7 @@ const markets=[
   {id:'bybit:ADAUSDT',asset:'ADA',quoteAsset:'USDT',exchange:'bybit',enabled:true},
   {id:'binance:BTCUSDC',asset:'BTC',quoteAsset:'USDC',exchange:'binance',enabled:true}
 ];
-assert.deepEqual(workspace.exchanges,['binance','bybit','okx','bingx','coinbase']);assert.equal(workspace.validExchange('bad'),'binance');
+assert.deepEqual(workspace.exchanges,['binance','bybit','okx','bingx','coinbase','kraken']);assert.equal(workspace.validExchange('bad'),'binance');
 assert.equal(workspace.marketForAsset(markets,'BTC','bingx').id,'bingx:spot:BTC-USDT');
 assert.equal(workspace.marketForAsset(markets,'BTC','bybit').id,'bybit:BTCUSDT');assert.equal(workspace.marketForAsset(markets,'BTC','okx').id,'okx:BTC-USDT');assert.equal(workspace.marketForAsset(markets,'ADA','okx'),null);
 assert.equal(workspace.equivalentMarket(markets,markets.find(market=>market.id==='binance:BTCUSDC'),'bybit').id,'bybit:BTCUSDT');

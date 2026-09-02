@@ -3,6 +3,7 @@
   const data=global.ZychMarketsData||(typeof require==='function'?require('../services/markets-data.js'):null);
   const coinbase=global.ZychCoinbasePublic||(typeof require==='function'?require('./coinbase-public.js'):null);
   const coinbaseChart=global.ZychCoinbaseChart||(typeof require==='function'?require('./coinbase-chart.js'):null);
+  const {KrakenBrowserAdapter}=global.ZychKrakenBrowser||(typeof require==='function'?require('./kraken-browser.js'):{});
   const timeoutFetch = async (url, signal, timeout = 10000, fetchImpl=global.fetch) => {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), timeout), abort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', abort, { once: true });
@@ -152,6 +153,6 @@
     async candles(...args){return coinbaseChart.candles(this,...args);}
     socket(...args){return coinbaseChart.socket(this,...args);}
   }
-  const api={ BinanceBrowserAdapter, BybitBrowserAdapter, OkxBrowserAdapter, BingxBrowserAdapter, CoinbaseBrowserAdapter, binanceInterval, bybitInterval, okxInterval, bingxInterval, bingxWsInterval, bingxCandle, decodeBingxFrame, bingxPair, bingxPercent, market };
-  if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychExchanges={...api,adapters:{ binance: new BinanceBrowserAdapter(), bybit: new BybitBrowserAdapter(), okx: new OkxBrowserAdapter(), bingx: new BingxBrowserAdapter({restBase:'/api/markets/bingx',historyBase:'/api/markets/bingx',catalogPath:'/catalog',tickerPath:'/tickers'}),coinbase:new CoinbaseBrowserAdapter() }};
+  const api={ KrakenBrowserAdapter, BinanceBrowserAdapter, BybitBrowserAdapter, OkxBrowserAdapter, BingxBrowserAdapter, CoinbaseBrowserAdapter, binanceInterval, bybitInterval, okxInterval, bingxInterval, bingxWsInterval, bingxCandle, decodeBingxFrame, bingxPair, bingxPercent, market };
+  if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychExchanges={...api,adapters:{ binance: new BinanceBrowserAdapter(), bybit: new BybitBrowserAdapter(), okx: new OkxBrowserAdapter(), bingx: new BingxBrowserAdapter({restBase:'/api/markets/bingx',historyBase:'/api/markets/bingx',catalogPath:'/catalog',tickerPath:'/tickers'}),coinbase:new CoinbaseBrowserAdapter(),kraken:new KrakenBrowserAdapter() }};
 })(typeof window!=='undefined'?window:globalThis);

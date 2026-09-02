@@ -48,7 +48,8 @@ class ServerAlertRunner {
       changed = true; this.alerts[index] = result.alert;
       if (result.triggered) { this.history.push(result.triggerEvent); await this.notifier.notify(result.triggerEvent); if (result.alert.status === 'triggered') subscriptionsChanged = true; }
     }
-    if (identity && Number.isFinite(currentPrice)) this.previousPrices.set(identity, currentPrice);
+    // Kraken crossings must remain trade-to-trade when OHLC Movement shares a market.
+    if (identity && Number.isFinite(currentPrice) && (event.exchange !== 'kraken' || event.eventType === 'ticker')) this.previousPrices.set(identity, currentPrice);
     if (changed) await this.persist(); if (subscriptionsChanged) await this.rebuild();
   }
   async stop() { this.status = 'stopping'; await this.queue; await this.persist(); await this.transport.stop(); await this.storage.close(); this.status = 'stopped'; }
