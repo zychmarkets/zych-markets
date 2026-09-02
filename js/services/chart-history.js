@@ -21,7 +21,7 @@
     }
     entry(market, timeframe) {
       const key = keyFor(market, timeframe);
-      if (!this.cache.has(key)) this.cache.set(key, { key, marketId: market.id, symbol: market.symbol, timeframe, candles: [], times: new Set(), endReached: false, loading: null, pages: 0, requestedEnds: new Set(), lastUsed: Date.now() });
+      if (!this.cache.has(key)) this.cache.set(key, { key, marketId: market.id, symbol: market.symbol, timeframe, candles: [], times: new Set(), endReached: false, loading: null, pages: 0, requestedEnds: new Set(), nextEndTime: undefined, lastUsed: Date.now() });
       const entry = this.cache.get(key); entry.lastUsed = Date.now();
       if (this.cache.size > MAX_CACHE_ENTRIES) [...this.cache.values()].filter(item => item.key !== key && !item.loading).sort((a, b) => a.lastUsed - b.lastUsed).slice(0, this.cache.size - MAX_CACHE_ENTRIES).forEach(item => this.cache.delete(item.key));
       return entry;
@@ -49,8 +49,9 @@
       if (entry.loading) { try { await entry.loading; } catch (error) { if (signal?.aborted) throw error; } }
       if (entry.candles.length >= target || entry.endReached) return { key: entry.key, data: entry.candles, pages: entry.pages, endReached: entry.endReached, cached: true };
       entry.loading = (async () => {
-        while (entry.candles.length < target && !entry.endReached) {
-          const endTime = entry.candles.length ? entry.candles[0].time * 1000 - 1 : null;
+        const firstPage=entry.pages,budget=this.adapters?.[market.exchange]?.initialPageBudget??Infinity;
+        while (entry.candles.length < target && !entry.endReached && entry.pages-firstPage<budget) {
+          const endTime = entry.nextEndTime ?? (entry.candles.length ? entry.candles[0].time * 1000 - 1 : null);
           const limit = Math.min(PAGE_LIMIT, target - entry.candles.length);
           const requestKey = endTime === null ? 'latest' : String(endTime);
           if (entry.requestedEnds.has(requestKey)) { entry.endReached = true; break; }
@@ -59,7 +60,8 @@
             const rows = await this.request(market, timeframe, endTime, signal, limit);
             if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
             const added = this.merge(entry, rows); entry.pages += 1;
-            if (!rows.length || rows.length < limit || added === 0) entry.endReached = true;
+            entry.nextEndTime=rows.nextEndTime;
+            if (rows.exhausted===true || rows.exhausted===undefined&&(!rows.length || rows.length < limit || added === 0)) entry.endReached = true;
           } catch (error) { entry.requestedEnds.delete(requestKey); throw error; }
         }
       })();
@@ -70,7 +72,7 @@
       const entry = this.entry(market, timeframe);
       if (entry.endReached) return { key: entry.key, data: entry.candles, added: 0, endReached: true, pages: entry.pages };
       if (entry.loading) return entry.loading;
-      const endTime = entry.candles.length ? entry.candles[0].time * 1000 - 1 : null, requestKey = endTime === null ? 'latest' : String(endTime);
+      const endTime = entry.nextEndTime ?? (entry.candles.length ? entry.candles[0].time * 1000 - 1 : null), requestKey = endTime === null ? 'latest' : String(endTime);
       if (entry.requestedEnds.has(requestKey)) return { key: entry.key, data: entry.candles, added: 0, endReached: entry.endReached, pages: entry.pages };
       entry.requestedEnds.add(requestKey);
       entry.loading = (async () => {
@@ -78,7 +80,8 @@
           const rows = await this.request(market, timeframe, endTime, signal);
           if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
           const added = this.merge(entry, rows); entry.pages += 1;
-          if (!rows.length || rows.length < PAGE_LIMIT || added === 0) entry.endReached = true;
+          entry.nextEndTime=rows.nextEndTime;
+          if (rows.exhausted===true || rows.exhausted===undefined&&(!rows.length || rows.length < PAGE_LIMIT || added === 0)) entry.endReached = true;
           return { key: entry.key, data: entry.candles, added, endReached: entry.endReached, pages: entry.pages };
         } catch (error) { entry.requestedEnds.delete(requestKey); throw error; }
         finally { entry.loading = null; }

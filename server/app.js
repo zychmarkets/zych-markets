@@ -7,6 +7,7 @@ const { BinanceMarketTransport } = require('./transports/binance-market-transpor
 const { BybitMarketTransport } = require('./transports/bybit-market-transport.js');
 const { OkxMarketTransport } = require('./transports/okx-market-transport.js');
 const { BingxMarketTransport } = require('./transports/bingx-market-transport.js');
+const { CoinbaseMarketTransport } = require('./transports/coinbase-market-transport.js');
 const { MultiExchangeMarketTransport } = require('./transports/multi-exchange-market-transport.js');
 const { WebPushNotifier } = require('./notifiers/web-push-notifier.js');
 const { ServerAlertRunner } = require('./alert-runner.js');
@@ -43,7 +44,7 @@ async function createServerApp(options = {}) {
   const config = options.config || (validateEnvironment(),validateConfig(loadConfig())), logger = options.logger || createLogger(config.logLevel), lifecycle=options.lifecycle||new ApplicationLifecycle(),metrics=options.metrics||new ProcessMetrics().start(),cleanups=[];
   try {
   const storage = options.storage || new JsonStorageAdapter({ directory: config.dataDir, core, historyLimit: config.historyLimit, logger });cleanups.push(()=>storage.close?.());await storage.init();
-  const transport = options.transport || new MultiExchangeMarketTransport({ logger, debug:config.alertFeedDebug, transports: { binance: new BinanceMarketTransport({ restBase: config.binanceRestBase, wsBase: config.binanceWsBase, logger }), bybit: new BybitMarketTransport({ restBase: config.bybitRestBase, wsBase: config.bybitWsBase, logger }), okx: new OkxMarketTransport({ restBase: config.okxRestBase, wsPublicBase: config.okxWsPublicBase, wsBusinessBase: config.okxWsBusinessBase, logger }), bingx: new BingxMarketTransport({restBase:config.bingxRestBase,wsBase:config.bingxWsBase,logger}) } });
+  const transport = options.transport || new MultiExchangeMarketTransport({ logger, debug:config.alertFeedDebug, transports: { binance: new BinanceMarketTransport({ restBase: config.binanceRestBase, wsBase: config.binanceWsBase, logger }), bybit: new BybitMarketTransport({ restBase: config.bybitRestBase, wsBase: config.bybitWsBase, logger }), okx: new OkxMarketTransport({ restBase: config.okxRestBase, wsPublicBase: config.okxWsPublicBase, wsBusinessBase: config.okxWsBusinessBase, logger }), bingx: new BingxMarketTransport({restBase:config.bingxRestBase,wsBase:config.bingxWsBase,logger}), coinbase: new CoinbaseMarketTransport({logger}) } });
   const notifier = options.notifier || new WebPushNotifier({ storage, logger, publicKey: config.vapidPublicKey, privateKey: config.vapidPrivateKey, subject: config.vapidSubject });
   const runner = options.runner || new ServerAlertRunner({ core, storage, transport, notifier, logger, debug:config.alertFeedDebug });cleanups.push(()=>runner.stop());await runner.start();
   const universe = options.universe || (config.radarEnabled === true ? new MarketUniverseService({ catalog:new MarketCatalogService({ logger,requestTimeoutMs:config.radarRequestTimeoutMs, adapters:[new BinanceCatalogAdapter({restBase:config.binanceRestBase}),new BybitCatalogAdapter({restBase:config.bybitRestBase}),new OkxCatalogAdapter({restBase:config.okxRestBase}),new BingxCatalogAdapter({restBase:config.bingxRestBase})] }), policy:config.universePolicy, refreshIntervalMs:config.radarRefreshIntervalMs, logger }) : null);

@@ -2,10 +2,11 @@
 const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const {createCoinbasePublicProxy,createCoinbaseCandleProxy,candleQuery}=require('./coinbase-public-proxy.js');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUBLIC_FILES = new Set(['index.html','app.js','style.css','sw.js']);
-const CSP = "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; connect-src 'self' https://api.binance.com https://api.bybit.com https://www.okx.com wss://stream.binance.com:9443 wss://stream.bybit.com wss://ws.okx.com:8443 wss://open-api-ws.bingx.com; img-src 'self' data:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+const CSP = "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; connect-src 'self' https://api.binance.com https://api.bybit.com https://www.okx.com wss://stream.binance.com:9443 wss://stream.bybit.com wss://ws.okx.com:8443 wss://open-api-ws.bingx.com wss://advanced-trade-ws.coinbase.com; img-src 'self' data:; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 const send = (res, status, value) => { const body = JSON.stringify(value); res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body), 'cache-control': 'no-store' }); res.end(body); };
 const error = (res, status, code, message) => send(res, status, { error: { code, message } });
 const validRadarFilter=(key,value)=>({exchange:/^(binance|bybit|okx|bingx)$/,marketType:/^(spot|perpetual)$/,symbol:/^[A-Z0-9-]{1,30}$/,eventType:/^[A-Z0-9_-]{1,60}$/,timeframe:/^(1|3|5|15|30)m$|^(1|2|4|6|8|12)h$|^1d$|^1w$|^1M$/}[key].test(value));
@@ -48,14 +49,24 @@ async function body(req, limit = 32768) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { const failure = new Error('Malformed JSON'); failure.code = 'MALFORMED_JSON'; throw failure; }
 }
 
-function createHttpServer({ runner, storage, notifier, universe = null, eventStore = null, eventPipeline = null, radar = null, qualification = null, breadth = null, scorePolicy = null, interpretationPolicy = null, health = null, metrics = null, bingxProxy = null, config, logger, startedAt = Date.now() }) {
+function createHttpServer({ runner, storage, notifier, universe = null, eventStore = null, eventPipeline = null, radar = null, qualification = null, breadth = null, scorePolicy = null, interpretationPolicy = null, health = null, metrics = null, bingxProxy = null, coinbaseProxy = null, config, logger, startedAt = Date.now() }) {
   let accepting = true;const sockets=new Set(),bingxPublic=bingxProxy||createBingxPublicProxy();
+  const coinbasePublic=coinbaseProxy||createCoinbasePublicProxy();
+  const coinbaseCandles=createCoinbaseCandleProxy({products:coinbasePublic});
   const server = http.createServer(async (req, res) => {
     res.setTimeout(15000);
     applySecurityHeaders(res);
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`), pathname = url.pathname;
       if(!applyCors(req,res,config))return error(res,403,'ORIGIN_NOT_ALLOWED','Origin is not allowed.');
+      if(pathname.startsWith('/api/markets/coinbase')){
+        if(!['/api/markets/coinbase/products','/api/markets/coinbase/candles'].includes(pathname))return error(res,404,'NOT_FOUND','Endpoint not found.');
+        if(req.method!=='GET')return error(res,405,'METHOD_NOT_ALLOWED','Coinbase public data supports GET only.');
+        if(pathname.endsWith('/candles')){try{candleQuery(url.searchParams);}catch{return error(res,400,'INVALID_COINBASE_QUERY','Invalid Coinbase candle query.');}}
+        if(pathname.endsWith('/products')&&url.search)return error(res,400,'INVALID_COINBASE_QUERY','Coinbase public products accepts no query parameters.');
+        if(!accepting)return error(res,503,'SHUTTING_DOWN','Server is shutting down.');
+        try{return send(res,200,await (pathname.endsWith('/candles')?coinbaseCandles(url.searchParams):coinbasePublic()));}catch(failure){logger.warn('coinbase_public_proxy_failed',{message:failure.message});return error(res,502,'COINBASE_UPSTREAM_UNAVAILABLE','Coinbase public Spot data are unavailable.');}
+      }
       if(req.method==='OPTIONS')return send(res,204,{});
       if(pathname==='/health/live'&&req.method==='GET')return send(res,200,health?.live?.()||{status:'alive',timestamp:Date.now()});
       if(pathname==='/health/ready'&&req.method==='GET'){const value=health?.ready?.()||{status:'not_ready',lifecycle:'STARTING',reasonCodes:['HEALTH_NOT_INITIALIZED'],timestamp:Date.now()};return send(res,value.status==='ready'?200:503,value)}

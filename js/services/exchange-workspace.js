@@ -1,6 +1,6 @@
 (function(global){
   'use strict';
-  const exchanges=Object.freeze(['binance','bybit','okx','bingx']);
+  const exchanges=Object.freeze(['binance','bybit','okx','bingx','coinbase']);
   const validExchange=value=>exchanges.includes(value)?value:'binance';
   const marketForAsset=(markets,asset,exchange,quoteAsset='USDT')=>{const same=(markets||[]).filter(market=>market.enabled&&market.asset===asset&&market.exchange===exchange);return same.find(market=>market.quoteAsset===quoteAsset)||same.find(market=>market.quoteAsset==='USDT')||same[0]||null};
   const unavailableMarket=(asset,exchange,quoteAsset='USDT')=>({id:`${exchange}:unavailable:${asset}:${quoteAsset}`,marketId:`${exchange}:unavailable:${asset}:${quoteAsset}`,asset,baseAsset:asset,quoteAsset,exchange,symbol:'',enabled:false,unavailable:true,status:'unavailable'});

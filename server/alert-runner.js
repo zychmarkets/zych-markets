@@ -12,6 +12,7 @@ class ServerAlertRunner {
   async create(definition) {
     const alert = this.core.createAlert(definition, { id: crypto.randomUUID(), now: this.now() });
     if (!alert) return { error: 'INVALID_ALERT', message: 'Invalid alert definition.' };
+    const unsupported=await this.transport.validateAlert?.(alert,definition);if(unsupported)return unsupported;
     if (this.alerts.some(item => item.status !== 'triggered' && this.core.alertFingerprint(item) === this.core.alertFingerprint(alert))) return { error: 'DUPLICATE_ALERT', message: 'This alert already exists.' };
     this.alerts.push(alert); await this.persist(); await this.rebuild();
     const currentPrice=this.previousPrices.get(this.core.marketIdentity(alert)),target=Number(alert.condition?.value),alreadySatisfied=alert.type==='price'&&Number.isFinite(currentPrice)&&(alert.condition.operator==='above'?currentPrice>target:currentPrice<target);
@@ -33,7 +34,7 @@ class ServerAlertRunner {
   async removeEvent(id) { const before = this.history.length; this.history = this.history.filter(item => item.id !== id); if (before === this.history.length) return null; await this.persist(); return true; }
   async change(id, mutate) { const index = this.alerts.findIndex(item => item.id === id); if (index < 0) return null; this.alerts[index] = mutate(this.alerts[index]); await this.persist(); await this.rebuild(); return structuredClone(this.alerts[index]); }
   async persist() { await this.storage.save(this.alerts, this.history); }
-  async rebuild() { if (this.status !== 'running') return; await this.transport.start(this.active(), { onEvent: event => this.enqueue(event), onStatus: status => { this.transportStatus = status; } }); }
+  async rebuild() { if (this.status !== 'running') return; await this.transport.start(this.active(), { onBaselineReset: market => { this.queue=this.queue.then(()=>this.previousPrices.delete(this.core.marketIdentity(market))); }, onEvent: event => this.enqueue(event), onStatus: status => { this.transportStatus = status; } }); }
   enqueue(event) { this.queue = this.queue.then(() => this.handle(event)).catch(error => this.logger.error('runner_event_error', { message: error.message })); return this.queue; }
   async handle(event) {
     let changed = false, subscriptionsChanged = false;

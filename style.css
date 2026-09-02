@@ -705,3 +705,12 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 .alert-dialog{background:var(--color-surface-dialog);box-shadow:var(--shadow-dialog)}.alerts-panel{background:var(--color-bg-elevated);box-shadow:var(--shadow-panel)}.watchlist-import-dialog{background:var(--color-bg-panel)}
 .alert-toast{border-color:var(--color-alert-border);background:var(--color-surface-toast);box-shadow:var(--shadow-toast)}.alert-toast strong{color:var(--color-alert-accent)}
 .alert-segment input:checked+span{border-color:var(--color-alert-border);background:var(--color-alert-selected);color:var(--color-alert-accent)}
+
+/* Available Coinbase snapshot metrics use the existing Markets grid. */
+.markets-capabilities{margin:0 0 10px;color:var(--muted-text);font-size:11px;line-height:1.5}.markets-price-cell small{display:block;color:var(--muted-text);font-size:9px;line-height:1.5}.markets-data-row:has(.markets-price-cell small){min-height:58px}
+
+
+/* Reserve the longest exchange label so switching cannot move Search. */
+#active-exchange-button-label{display:inline-block;width:8ch;text-align:left;white-space:nowrap}
+
+.markets-heatmap>.markets-empty{grid-column:1/-1;min-height:160px}

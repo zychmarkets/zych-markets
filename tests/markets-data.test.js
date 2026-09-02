@@ -17,7 +17,7 @@ test('Markets model retains canonical identity and exposes only honest market me
   ];
   const rows=fixtures.map(value=>marketsData.item(instruments.normalize({...value,marketType:'spot'}),{price:10,change24h:0,quoteVolume24h:20,snapshotTimestamp:30}));
   assert.deepEqual(rows.map(row=>row.marketId),['binance:spot:BTCUSDT','bybit:spot:BTCUSDT','okx:spot:BTC-USDT','bingx:spot:BTC-USDT']);
-  assert.deepEqual(rows[2],{marketId:'okx:spot:BTC-USDT',exchange:'okx',marketType:'spot',symbol:'BTC-USDT',nativeSymbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT',displaySymbol:'BTC/USDT',price:10,change24h:0,quoteVolume24h:20,snapshotTimestamp:30,watchlisted:false});
+  assert.deepEqual(rows[2],{marketId:'okx:spot:BTC-USDT',exchange:'okx',marketType:'spot',symbol:'BTC-USDT',nativeSymbol:'BTC-USDT',baseAsset:'BTC',quoteAsset:'USDT',displaySymbol:'BTC/USDT',price:10,change24h:0,quoteVolume24h:20,snapshotTimestamp:30,receivedAt:null,sourceTimestamp:null,high24h:null,low24h:null,baseVolume24h:null,availability:null,provenance:null,watchlisted:false});
   assert.equal('marketCap' in rows[0],false);assert.equal('sparkline' in rows[0],false);assert.equal('history' in rows[0],false);assert.equal('eventChangePct' in rows[0],false);assert.equal('eventVolume' in rows[0],false);
 });
 

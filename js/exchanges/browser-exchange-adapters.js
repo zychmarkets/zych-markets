@@ -1,6 +1,8 @@
 (function (global) {
   'use strict';
   const data=global.ZychMarketsData||(typeof require==='function'?require('../services/markets-data.js'):null);
+  const coinbase=global.ZychCoinbasePublic||(typeof require==='function'?require('./coinbase-public.js'):null);
+  const coinbaseChart=global.ZychCoinbaseChart||(typeof require==='function'?require('./coinbase-chart.js'):null);
   const timeoutFetch = async (url, signal, timeout = 10000, fetchImpl=global.fetch) => {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), timeout), abort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', abort, { once: true });
@@ -135,6 +137,21 @@
       return socket;
     }
   }
-  const api={ BinanceBrowserAdapter, BybitBrowserAdapter, OkxBrowserAdapter, BingxBrowserAdapter, binanceInterval, bybitInterval, okxInterval, bingxInterval, bingxWsInterval, bingxCandle, decodeBingxFrame, bingxPair, bingxPercent, market };
-  if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychExchanges={...api,adapters:{ binance: new BinanceBrowserAdapter(), bybit: new BybitBrowserAdapter(), okx: new OkxBrowserAdapter(), bingx: new BingxBrowserAdapter({restBase:'/api/markets/bingx',historyBase:'/api/markets/bingx',catalogPath:'/catalog',tickerPath:'/tickers'}) }};
+  class CoinbaseBrowserAdapter {
+    constructor({fetchImpl=global.fetch,socketFactory=url=>new global.WebSocket(url),now=Date.now}={}){this.id='coinbase';this.initialPageBudget=6;Object.assign(this,{fetchImpl,socketFactory,now});this.requiresSubscriptionAck=true;this.capabilities={...coinbase.capabilities,chart:true,undocumentedIntervals:['1w','1M']};this.catalogMetadata=[];}
+    async products(signal){
+      const value=await timeoutFetch('/api/markets/coinbase/products',signal,12000,this.fetchImpl);
+      coinbase.validateProducts(value?.products);
+      if(!Number.isSafeInteger(value.receivedAt)||value.receivedAt<=0)throw new Error('Invalid Coinbase receipt timestamp');
+      this.catalogMetadata=value.products.map(row=>({productId:row.product_id,status:row.status,alias:row.alias,sourceFlags:Object.fromEntries(coinbase.flags.map(key=>[key,row[key]])),unsupportedReason:coinbase.unsupportedReason(row)}));
+      return value;
+    }
+    async discover(signal){const value=await this.products(signal);return value.products.filter(row=>!coinbase.unsupportedReason(row)).map(coinbase.instrument);}
+    async allSnapshots(signal){const value=await this.products(signal);return value.products.filter(row=>!coinbase.unsupportedReason(row)).map(row=>coinbase.snapshot(row,value.receivedAt));}
+    async snapshots(markets,signal){const ids=new Set(markets.filter(row=>row.exchange==='coinbase'&&row.marketType==='spot'&&row.id===`coinbase:spot:${row.symbol}`).map(row=>row.id));return Object.fromEntries((await this.allSnapshots(signal)).filter(row=>ids.has(row.marketId)).map(row=>[row.marketId,row]));}
+    async candles(...args){return coinbaseChart.candles(this,...args);}
+    socket(...args){return coinbaseChart.socket(this,...args);}
+  }
+  const api={ BinanceBrowserAdapter, BybitBrowserAdapter, OkxBrowserAdapter, BingxBrowserAdapter, CoinbaseBrowserAdapter, binanceInterval, bybitInterval, okxInterval, bingxInterval, bingxWsInterval, bingxCandle, decodeBingxFrame, bingxPair, bingxPercent, market };
+  if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychExchanges={...api,adapters:{ binance: new BinanceBrowserAdapter(), bybit: new BybitBrowserAdapter(), okx: new OkxBrowserAdapter(), bingx: new BingxBrowserAdapter({restBase:'/api/markets/bingx',historyBase:'/api/markets/bingx',catalogPath:'/catalog',tickerPath:'/tickers'}),coinbase:new CoinbaseBrowserAdapter() }};
 })(typeof window!=='undefined'?window:globalThis);
