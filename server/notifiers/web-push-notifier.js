@@ -18,13 +18,16 @@ class WebPushNotifier {
     if (this.enabled) webpush.setVapidDetails(subject, publicKey, privateKey);
   }
   async notify(event) {
-    if (!this.enabled) return;
+    if (!this.enabled) return { outcome: this.latestOutcome = 'NOT_CONFIGURED' };
     const payload = JSON.stringify(notificationText(event)), subscriptions = this.storage.loadPushSubscriptions();
-    await Promise.allSettled(subscriptions.map(async subscription => {
-      try { await this.sendNotification({ endpoint: subscription.endpoint, keys: subscription.keys }, payload, { TTL: 300, urgency: 'high' }); this.lastPushSuccessAt = Date.now(); this.logger.info('push_sent', { triggerId: event.id, endpointHost: safeHost(subscription.endpoint) }); }
-      catch (error) { this.lastPushFailureAt = Date.now(); if ([404, 410].includes(error.statusCode)) { await this.storage.removePushSubscription(subscription.endpoint); this.logger.warn('push_subscription_expired', { endpointHost: safeHost(subscription.endpoint), statusCode: error.statusCode }); } else this.logger.warn('push_failed', { endpointHost: safeHost(subscription.endpoint), statusCode: error.statusCode || null, message: clean(error.message) }); }
+    if (!subscriptions.length) return { outcome: this.latestOutcome = 'NO_SUBSCRIBERS' };
+    this.latestOutcome = 'PENDING';
+    const results = await Promise.allSettled(subscriptions.map(async subscription => {
+      try { await this.sendNotification({ endpoint: subscription.endpoint, keys: subscription.keys }, payload, { TTL: 300, urgency: 'high', timeout: 10000 }); this.lastPushSuccessAt = Date.now(); this.logger.info('push_accepted', { triggerId: event.id, endpointHost: safeHost(subscription.endpoint) }); }
+      catch (error) { this.lastPushFailureAt = Date.now(); if ([404, 410].includes(error.statusCode)) { await this.storage.removePushSubscription(subscription.endpoint); this.logger.warn('push_subscription_expired', { endpointHost: safeHost(subscription.endpoint), statusCode: error.statusCode }); } else this.logger.warn('push_failed', { endpointHost: safeHost(subscription.endpoint), statusCode: error.statusCode || null, message: clean(error.message) }); throw error; }
     }));
+    return { outcome: this.latestOutcome = results.some(result => result.status === 'rejected') ? 'FAILED' : 'ACCEPTED', accepted: results.filter(result => result.status === 'fulfilled').length, failed: results.filter(result => result.status === 'rejected').length };
   }
-  status() { return { pushEnabled: this.enabled, pushSubscriptionsCount: this.storage.loadPushSubscriptions().length, lastPushSuccessAt: this.lastPushSuccessAt, lastPushFailureAt: this.lastPushFailureAt }; }
+  status() { return { pushEnabled: this.enabled, pushSubscriptionsCount: this.storage.loadPushSubscriptions().length, lastPushSuccessAt: this.lastPushSuccessAt, lastPushFailureAt: this.lastPushFailureAt, latestOutcome: this.latestOutcome || (this.enabled ? 'UNKNOWN' : 'NOT_CONFIGURED') }; }
 }
 module.exports = { WebPushNotifier, notificationText };

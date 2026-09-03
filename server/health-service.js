@@ -11,11 +11,11 @@ class HealthService {
     if (!selected || !healthyExchanges) return this.update(false,['ESSENTIAL_PROCESSING_UNAVAILABLE']);
     const lastHealthy=this.radar.stats?.lastHealthyProcessingTimestamp;
     if (!complete || ratio<this.minimumCompleteRatio || !lastHealthy) return this.update(false,['RADAR_WARMING_UP']);
-    if(this.now()-lastHealthy>this.maximumHealthyAgeMs)return this.update(false,['HEALTHY_PROCESSING_STALE']);
+    if(this.now()-lastHealthy>this.maximumHealthyAgeMs)return this.update(false,['HEALTHY_PROCESSING_STALE'],'STALE');
     const degraded=healthyExchanges<(coverage?.expectedExchanges?.length||healthyExchanges)||complete<total;
-    return this.update(true,degraded?['PARTIAL_PROCESSING_AVAILABLE']:[]);
+    return this.update(true,degraded?['PARTIAL_PROCESSING_AVAILABLE']:[],degraded?'DEGRADED':null);
   }
-  update(ready,reasonCodes){const state=ready?(reasonCodes.length?'DEGRADED':'READY'):'WARMING_UP',current=this.lifecycle.snapshot(),unchanged=current.state===state&&current.reasonCodes.length===reasonCodes.length&&current.reasonCodes.every((value,index)=>value===reasonCodes[index]);if(!unchanged)this.lifecycle.transition(state,reasonCodes);return{ready,lifecycle:this.lifecycle.state,reasonCodes:[...reasonCodes]}}
+  update(ready,reasonCodes,stateOverride=null){const state=stateOverride||(ready?(reasonCodes.length?'DEGRADED':'READY'):'WARMING_UP'),current=this.lifecycle.snapshot(),unchanged=current.state===state&&current.reasonCodes.length===reasonCodes.length&&current.reasonCodes.every((value,index)=>value===reasonCodes[index]);if(!unchanged)this.lifecycle.transition(state,reasonCodes);return{ready,lifecycle:this.lifecycle.state,reasonCodes:[...reasonCodes]}}
   live(){return{status:'alive',timestamp:this.now()}}
   ready(){const assessment=this.assess();return{status:assessment.ready?'ready':'not_ready',lifecycle:assessment.lifecycle,reasonCodes:assessment.reasonCodes,timestamp:this.now()}}
 }

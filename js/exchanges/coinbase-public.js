@@ -32,7 +32,7 @@
   }
   function snapshot(row,receivedAt){
     const price=nonnegative(row.price),change24h=percent(row.price_percentage_change_24h),high24h=nonnegative(row.high_24h),low24h=nonnegative(row.low_24h),baseVolume24h=nonnegative(row.volume_24h);
-    return{marketId:`coinbase:spot:${row.product_id}`,symbol:row.product_id,price,lastPrice:price,change24h,changePercent:change24h,change:null,high24h,high:high24h,low24h,low:low24h,baseVolume24h,quoteVolume24h:null,volume:null,sourceTimestamp:null,snapshotTimestamp:null,receivedAt,
+    return{marketId:`coinbase:spot:${row.product_id}`,symbol:row.product_id,price,lastPrice:price,change24h,changePercent:change24h,change:null,high24h,high:high24h,low24h,low:low24h,baseVolume24h,quoteVolume24h:null,volume:null,sourceTimestamp:null,snapshotTimestamp:null,receivedAt,receiptTimestamp:receivedAt,lastSnapshotAt:receivedAt,processingTimestamp:Date.now(),cacheStoredAt:null,cacheHit:false,
       availability:{price:price!==null,change24h:change24h!==null,high24h:high24h!==null,low24h:low24h!==null,baseVolume24h:baseVolume24h!==null,quoteVolume24h:false},
       provenance:{source:'coinbase-advanced-trade-public',timestampKind:'receipt',quoteVolumeReason:'EXACT_QUOTE_VOLUME_UNAVAILABLE'}};
   }

@@ -5,7 +5,7 @@ const intervalFor = value => value === '24h' ? '1d' : value;
 class BinanceMarketTransport {
   constructor({ restBase, wsBase, logger, WebSocketImpl = globalThis.WebSocket, fetchImpl = globalThis.fetch, reconnectBaseMs = 1000, reconnectMaxMs = 30000 }) {
     this.restBase = restBase; this.wsBase = wsBase; this.logger = logger; this.WebSocketImpl = WebSocketImpl; this.fetchImpl = fetchImpl; this.reconnectBaseMs = reconnectBaseMs; this.reconnectMaxMs = reconnectMaxMs;
-    this.alerts = []; this.handlers = {}; this.socket = null; this.timer = null; this.generation = 0; this.reconnectAttempt = 0; this.baselines = new Map(); this.streams = []; this.status = 'idle';
+    this.alerts = []; this.handlers = {}; this.socket = null; this.timer = null; this.generation = 0; this.reconnectAttempt = 0; this.baselines = new Map(); this.streams = []; this.status = 'idle'; this.topicEvidence = new Map();
   }
   streamsFor(alerts) {
     const streams = new Set();
@@ -24,7 +24,7 @@ class BinanceMarketTransport {
   normalize(payload) {
     if (!payload?.s) return null;
     const identity = this.identity(payload.s), timestamp = Number(payload.E) || Date.now();
-    if (payload.e === '24hrTicker') return { ...identity, eventType: 'ticker', price: Number(payload.c), timestamp };
+    if (payload.e === '24hrTicker' && Number(payload.c) > 0) return { ...identity, eventType: 'ticker', price: Number(payload.c), timestamp, sourceTimestamp: Number(payload.E) || null };
     if (payload.e !== 'kline' || !payload.k) return null;
     const candle = payload.k, key = `${payload.s}:${candle.i}`, baseline = this.baselines.get(key) || [];
     const averageVolume = baseline.length ? baseline.reduce((sum, value) => sum + value, 0) / baseline.length : null;
@@ -55,13 +55,14 @@ class BinanceMarketTransport {
     const socket = new this.WebSocketImpl(`${this.wsBase}/ws`); this.socket = socket;
     socket.addEventListener('open', () => {
       if (token !== this.generation) return socket.close();
+      this.connectedAt=Date.now(); this.topicEvidence.clear(); for (const topic of this.streams) this.topicEvidence.set(topic, { socket, requestedAt: Date.now(), acknowledgement: 'pending', lastAckAt: null });
       socket.send(JSON.stringify({ method: 'SUBSCRIBE', params: this.streams, id: token })); this.reconnectAttempt = 0; this.status = 'live'; this.logger.info('binance_connected', { subscriptions: this.streams.length }); this.handlers.onStatus?.('live');
     });
-    socket.addEventListener('message', message => { if (token !== this.generation) return; try { const event = this.normalize(JSON.parse(message.data)); if (event) this.handlers.onEvent?.(event); } catch (error) { this.logger.warn('binance_message_invalid', { message: error.message }); } });
-    socket.addEventListener('error', () => { if (token === this.generation) this.status = 'offline'; });
-    socket.addEventListener('close', () => {
+    socket.addEventListener('message', message => { if (token !== this.generation || socket !== this.socket) return; try { const payload = JSON.parse(message.data); this.lastMessageAt = Date.now(); if (payload.id === token) { for (const fact of this.topicEvidence.values()) { fact.acknowledgement = payload.result === null && !payload.code ? 'acknowledged' : 'rejected'; fact.lastAckAt = fact.acknowledgement === 'acknowledged' ? Date.now() : null; } return; } const event = this.normalize(payload); if (event && this.alerts.some(a => a.symbol === event.symbol)) this.handlers.onEvent?.(event); } catch (error) { this.logger.warn('binance_message_invalid', { message: error.message }); } });
+    socket.addEventListener('error', () => { if (token === this.generation) { this.status = 'offline'; this.lastError={code:'SOCKET_ERROR',at:Date.now()}; } });
+    socket.addEventListener('close', event => {
       if (token !== this.generation) return;
-      this.socket = null; this.status = 'reconnecting'; this.handlers.onStatus?.('reconnecting');
+      this.lastDisconnect={code:event?.code??null,at:Date.now()};this.reconnectCount=(this.reconnectCount||0)+1;this.lastReconnectAt=Date.now();this.socket = null; this.status = 'reconnecting'; this.handlers.onStatus?.('reconnecting');
       const delay = Math.min(this.reconnectMaxMs, this.reconnectBaseMs * 2 ** this.reconnectAttempt++); this.logger.warn('binance_reconnect', { delay });
       this.timer = setTimeout(() => this.open(token), delay);
     });

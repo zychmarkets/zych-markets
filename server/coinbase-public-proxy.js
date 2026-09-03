@@ -8,7 +8,7 @@ const PAGE_SIZE=1000,MAX_PAGES=20,MAX_BYTES=8*1024*1024;
 function createCoinbasePublicProxy({fetchImpl=globalThis.fetch,now=Date.now,timeoutMs=10000,cacheTtlMs=5000}={}){
   let cache=null,pending=null;
   return async()=>{
-    if(cache&&now()-cache.receivedAt<cacheTtlMs)return cache;
+    if(cache&&now()-cache.cacheStoredAt<cacheTtlMs)return {...cache,cacheHit:true};
     if(pending)return pending;
     pending=(async()=>{
       const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs),products=[],seen=new Set();
@@ -26,7 +26,7 @@ function createCoinbasePublicProxy({fetchImpl=globalThis.fetch,now=Date.now,time
           if(value.products.length>PAGE_SIZE||typeof value.pagination?.has_next!=='boolean')throw new Error('Invalid Coinbase pagination');
           let added=0;
           for(const row of value.products){if(seen.has(row.product_id))continue;seen.add(row.product_id);products.push(row);added++;}
-          if(!value.pagination.has_next){cache={products,receivedAt:now()};return cache;}
+          if(!value.pagination.has_next){const receivedAt=now();cache={products,receivedAt,upstreamReceivedAt:receivedAt,cacheStoredAt:receivedAt,cacheHit:false};return cache;}
           if(!added)throw new Error('Coinbase pagination made incomplete progress');
           offset+=value.products.length;
         }

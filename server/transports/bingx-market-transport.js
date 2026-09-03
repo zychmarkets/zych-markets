@@ -61,7 +61,7 @@ class BingxMarketTransport {
     if(Object.hasOwn(payload,'code')&&payload.code!==0)return null;
     if(info.eventType==='ticker'){
       const price=number(row.c),time=timestamp(row.T)||timestamp(payload.timestamp);if(price===null||price<=0||time===null)return null;
-      return {...this.identity(info.symbol),eventType:'ticker',price,timestamp:time};
+      return {...this.identity(info.symbol),eventType:'ticker',price,timestamp:time,sourceTimestamp:time};
     }
     const k=row.K;if(!k||k.s&&k.s!==info.symbol||k.i&&k.i!==info.wsInterval)return null;
     const price=number(k.c),open=number(k.o),high=number(k.h),low=number(k.l),volume=number(k.q),openTime=timestamp(k.t),closeTime=timestamp(k.T),time=timestamp(row.E)||timestamp(payload.timestamp);
@@ -82,7 +82,7 @@ class BingxMarketTransport {
     if(token!==this.generation||!this.topics.length)return;
     let socket;try{socket=new this.WebSocketImpl(this.wsBase);}catch(error){this.lastError={code:'SOCKET_CREATE_FAILED',reason:error.message,at:this.now()};this.schedule(token);return;}
     this.socket=socket;socket.binaryType='arraybuffer';
-    const ctx={socket,token,closed:false,pending:new Map(),acked:new Set(),lastData:new Map(),queue:Promise.resolve(),queued:0,ackTimer:null,heartbeatTimer:null};this.context=ctx;
+    const ctx={socket,token,closed:false,pending:new Map(),acked:new Set(),ackTimes:new Map(),lastData:new Map(),queue:Promise.resolve(),queued:0,ackTimer:null,heartbeatTimer:null};this.context=ctx;
     const current=()=>token===this.generation&&this.context===ctx&&!ctx.closed;
     const fail=(code,error)=>{if(!current())return;this.lastError={code,reason:String(error?.message||error),at:this.now()};this.lastDisconnect=this.lastError;this.setStatus('failed');this.release(ctx);try{socket.close(1000,'transport recovery');}catch{}this.schedule(token);};
     const heartbeat=()=>{clearTimeout(ctx.heartbeatTimer);ctx.heartbeatTimer=setTimeout(()=>fail('HEARTBEAT_TIMEOUT','BingX heartbeat/data timeout'),this.heartbeatTimeoutMs);};
@@ -100,11 +100,11 @@ class BingxMarketTransport {
         this.messageCount++;this.lastMessageAt=this.now();
         const payload=text==='Ping'||text==='ping'?{ping:true}:JSON.parse(text);
         if(!payload||typeof payload!=='object')throw new Error('Invalid BingX message');
-        if(!payload.dataType&&Object.hasOwn(payload,'ping')){this.heartbeatCount++;heartbeat();socket.send('Pong');this.pongCount++;return;}
+        if(!payload.dataType&&Object.hasOwn(payload,'ping')){this.heartbeatCount++;this.lastHeartbeatAt=this.now();heartbeat();socket.send('Pong');this.pongCount++;return;}
         if(Object.hasOwn(payload,'id')){
           const topic=ctx.pending.get(payload.id);if(!topic)return;
           if(payload.code!==0){fail('SUBSCRIBE_REJECTED',`BingX subscription rejected: ${payload.code}`);return;}
-          ctx.pending.delete(payload.id);ctx.acked.add(topic);heartbeat();
+          ctx.pending.delete(payload.id);ctx.acked.add(topic);ctx.ackTimes.set(topic,this.now());heartbeat();
           if(!ctx.pending.size){clearTimeout(ctx.ackTimer);this.attempt=0;this.setStatus('live');}return;
         }
         if(!this.topicInfo.has(payload.dataType))return;
@@ -124,7 +124,7 @@ class BingxMarketTransport {
     socket.addEventListener('close',event=>{if(!current())return;this.lastDisconnect={code:event?.code??null,reason:String(event?.reason||'connection closed'),at:this.now()};this.release(ctx);this.schedule(token);});
   }
   release(ctx){ctx.closed=true;clearTimeout(ctx.ackTimer);clearTimeout(ctx.heartbeatTimer);ctx.pending.clear();ctx.acked.clear();if(this.socket===ctx.socket)this.socket=null;}
-  schedule(token){if(token!==this.generation||!this.topics.length)return;clearTimeout(this.timer);this.setStatus('reconnecting');this.reconnectCount++;const delay=Math.min(this.reconnectMaxMs,this.reconnectBaseMs*2**Math.min(this.attempt++,16));this.timer=setTimeout(()=>{if(token===this.generation){this.setStatus('connecting');this.open(token);}},delay);}
+  schedule(token){if(token!==this.generation||!this.topics.length)return;clearTimeout(this.timer);this.setStatus('reconnecting');this.reconnectCount++;this.lastReconnectAt=this.now();const delay=Math.min(this.reconnectMaxMs,this.reconnectBaseMs*2**Math.min(this.attempt++,16));this.timer=setTimeout(()=>{if(token===this.generation){this.setStatus('connecting');this.open(token);}},delay);}
   async stop(){this.generation++;clearTimeout(this.timer);this.timer=null;this.controller?.abort();this.controller=null;const socket=this.socket;if(this.context)this.release(this.context);this.context=null;if(socket&&socket.readyState<2)socket.close(1000,'shutdown');this.status='idle';this.topics=[];this.topicInfo.clear();this.alerts=[];this.baselines.clear();this.lastCandles.clear();this.latest.clear();this.attempt=0;}
   diagnostics(){
     const ctx=this.context,active=Boolean(this.socket&&this.socket.readyState===1),stale=this.status==='live'&&this.topics.some(topic=>{const time=ctx?.lastData.get(topic);return this.now()-(time??this.connectedAt??0)>this.staleAfterMs;});

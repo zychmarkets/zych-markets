@@ -15,7 +15,7 @@
   const networkFailure=error=>error?.name==='TypeError'||error?.name==='AbortError';
   class ServerAlertClient {
     constructor({ baseUrl = null, notifier = null, legacyStorage = null, onChange = () => {}, onStatus = () => {}, pollMs = 5000 } = {}) {
-      this.baseUrl = baseUrl || resolveAlertApiBase(); this.notifier = notifier; this.legacyStorage = legacyStorage; this.onChange = onChange; this.onStatus = onStatus; this.pollMs = pollMs; this.alerts = []; this.history = []; this.knownTriggers = new Set(); this.running = false; this.initialized = false; this.syncVersion = 0;
+      this.baseUrl = baseUrl || resolveAlertApiBase(); this.notifier = notifier; this.legacyStorage = legacyStorage; this.onChange = onChange; this.onStatus = onStatus; this.pollMs = pollMs; this.alerts = []; this.history = []; this.health = null; this.knownTriggers = new Set(); this.running = false; this.initialized = false; this.syncVersion = 0;
     }
     list() { return [...this.alerts]; }
     events() { return [...this.history]; }
@@ -34,9 +34,9 @@
       const [alerts, triggers, health] = await Promise.all([this.request('/alerts'), this.request('/triggers'),this.request('/health')]);
       if (version !== this.syncVersion) return false;
       const incoming = triggers.triggers || [];
-      const unseen=incoming.slice().reverse().filter(event=>!this.knownTriggers.has(event.id));incoming.forEach(event=>this.knownTriggers.add(event.id));
+      const unseen=incoming.slice().reverse().filter(event=>{if(this.knownTriggers.has(event.id))return false;this.knownTriggers.add(event.id);return true;});
       if (this.initialized && notify) unseen.forEach(event => this.notifier?.notify(event));
-      this.alerts = alerts.alerts || []; this.history = incoming; this.initialized = true; this.onStatus(health.alerts?.monitoringStatus||'OFFLINE',health); this.onChange(this.list(), this.events());
+      this.alerts = alerts.alerts || []; this.history = incoming; this.health=health; this.initialized = true; this.onStatus(health.alerts?.monitoringStatus||'OFFLINE',health); this.onChange(this.list(), this.events());
       return true;
     }
     async migrateLegacy() {

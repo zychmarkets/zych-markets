@@ -1,4 +1,9 @@
 'use strict';
+self.__zychDeliveredPushIds = self.__zychDeliveredPushIds || new Set();
+self.addEventListener('message',event=>{
+  if(event.data?.type==='ZYCH_SW_ACTIVATE')event.waitUntil(self.skipWaiting());
+});
+self.addEventListener('activate',event=>event.waitUntil(clients.claim()));
 self.addEventListener('push', event => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
@@ -6,7 +11,14 @@ self.addEventListener('push', event => {
   const body = typeof payload.body === 'string' ? payload.body.slice(0, 240) : 'A market alert was triggered.';
   const triggerId = typeof payload.triggerId === 'string' ? payload.triggerId.slice(0, 100) : `push-${Date.now()}`;
   const url = typeof payload.url === 'string' && /^\/(?:\?|$)/.test(payload.url) ? payload.url : `/?trigger=${encodeURIComponent(triggerId)}`;
-  event.waitUntil(self.registration.showNotification(title, { body, tag: `zych-alert-${triggerId}`, data: { url, triggerId }, requireInteraction: false }));
+  event.waitUntil((async()=>{
+    if(self.__zychDeliveredPushIds.has(triggerId))return;
+    self.__zychDeliveredPushIds.add(triggerId);
+    while(self.__zychDeliveredPushIds.size>200)self.__zychDeliveredPushIds.delete(self.__zychDeliveredPushIds.values().next().value);
+    const windows=await clients.matchAll({type:'window',includeUncontrolled:true});
+    if(windows.some(client=>client.visibilityState==='visible'&&client.focused===true))return;
+    await self.registration.showNotification(title, { body, tag: `zych-alert-${triggerId}`, data: { url, triggerId }, requireInteraction: false });
+  })());
 });
 
 self.addEventListener('notificationclick', event => {

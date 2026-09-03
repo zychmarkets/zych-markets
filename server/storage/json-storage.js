@@ -29,7 +29,7 @@ class JsonStorageAdapter {
       }
       await this.flush();
     }
-    this.healthy = true;
+    this.initialized = true; this.healthy = true;
     return this.snapshot();
   }
   snapshot() { return structuredClone(this.state); }
@@ -55,14 +55,18 @@ class JsonStorageAdapter {
   async removePushSubscription(endpoint) { const before = this.state.pushSubscriptions.length; this.state.pushSubscriptions = this.state.pushSubscriptions.filter(item => item.endpoint !== endpoint); if (before !== this.state.pushSubscriptions.length) await this.flush(); return before !== this.state.pushSubscriptions.length; }
   async flush() {
     const snapshot = JSON.stringify(this.state, null, 2);
-    this.writeChain = this.writeChain.then(async () => {
+    this.writeChain = this.writeChain.catch(() => {}).then(async () => {
       const temporary = `${this.file}.${process.pid}.tmp`;
       await fs.writeFile(temporary, snapshot, { encoding: 'utf8', mode: 0o600 });
       await fs.rename(temporary, this.file);
+      this.healthy = true; this.lastWriteSucceeded = true; this.lastWriteAt = Date.now(); this.lastError = null;
+    }).catch(error => {
+      this.healthy = false; this.lastWriteSucceeded = false; this.lastWriteFailedAt = Date.now(); this.lastError = { code: 'STORAGE_WRITE_FAILED', at: this.lastWriteFailedAt };
+      throw error;
     });
     await this.writeChain;
   }
   async close() { await this.writeChain; }
-  status() { return { healthy: this.healthy, type: 'json-file' }; }
+  status() { return { healthy: this.healthy, type: 'json-file', initialized: Boolean(this.initialized), lastWriteSucceeded: this.lastWriteSucceeded ?? null, lastWriteAt: this.lastWriteAt ?? null, lastWriteFailedAt: this.lastWriteFailedAt ?? null, lastError: this.lastError ?? null }; }
 }
 module.exports = { JsonStorageAdapter, validTrigger, validSubscription };

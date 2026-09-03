@@ -25,7 +25,7 @@ class KrakenChannelTransport extends BingxMarketTransport {
   open(token){
     if(token!==this.generation||!this.topics.length)return;
     let socket;try{socket=new this.WebSocketImpl(this.wsBase);}catch(error){this.lastError={code:'SOCKET_CREATE_FAILED',reason:error.message,at:this.now()};this.schedule(token);return;}
-    this.socket=socket;const ctx={socket,token,closed:false,pending:new Map(),acked:new Set(),lastData:new Map(),baseline:new Set(),candles:new Map(),ackTimer:null,heartbeatTimer:null};this.context=ctx;
+    this.socket=socket;const ctx={socket,token,closed:false,pending:new Map(),acked:new Set(),ackTimes:new Map(),lastData:new Map(),baseline:new Set(),candles:new Map(),ackTimer:null,heartbeatTimer:null};this.context=ctx;
     const current=()=>token===this.generation&&this.context===ctx&&!ctx.closed;
     const fail=(code,error)=>{if(!current())return;this.lastError={code,reason:String(error?.message||error),at:this.now()};this.lastDisconnect=this.lastError;this.setStatus('failed');this.release(ctx);try{socket.close(1000,'transport recovery');}catch{}this.schedule(token);};
     const transportAlive=()=>{clearTimeout(ctx.heartbeatTimer);ctx.heartbeatTimer=setTimeout(()=>fail('HEARTBEAT_TIMEOUT','Kraken transport silent'),this.heartbeatTimeoutMs);};
@@ -46,7 +46,7 @@ class KrakenChannelTransport extends BingxMarketTransport {
         if(p.method==='subscribe'){
           const symbol=ctx.pending.get(p.req_id);
           if(!symbol||p.success!==true||p.result?.channel!==this.channel||p.result.symbol!==symbol||p.result.snapshot!==true||this.interval&&p.result.interval!==this.interval){fail('SUBSCRIBE_REJECTED',p.error||'Kraken ACK identity mismatch');return;}
-          ctx.pending.delete(p.req_id);ctx.acked.add(symbol);if(!ctx.pending.size)clearTimeout(ctx.ackTimer);return;
+          ctx.pending.delete(p.req_id);ctx.acked.add(symbol);ctx.ackTimes.set(symbol,this.now());if(!ctx.pending.size)clearTimeout(ctx.ackTimer);return;
         }
         if(p.channel!==this.channel)return;
         if(!['snapshot','update'].includes(p.type)||!Array.isArray(p.data)||p.data.length>10000)throw Error('Invalid Kraken data frame');

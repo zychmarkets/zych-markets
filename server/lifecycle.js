@@ -1,6 +1,6 @@
 'use strict';
 
-const STATES = Object.freeze(['STARTING', 'WARMING_UP', 'READY', 'DEGRADED', 'STOPPING', 'STOPPED']);
+const STATES = Object.freeze(['STARTING', 'WARMING_UP', 'RECOVERING', 'STALE', 'PARTIAL', 'READY', 'DEGRADED', 'STOPPING', 'STOPPED']);
 
 class ApplicationLifecycle {
   constructor({ now = Date.now } = {}) {

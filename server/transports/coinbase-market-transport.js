@@ -29,7 +29,7 @@ class CoinbaseMarketTransport extends BingxMarketTransport {
     if(token!==this.generation||!this.topics.length)return;
     let socket;try{socket=new this.WebSocketImpl(this.wsBase);}catch(error){this.lastError={code:'SOCKET_CREATE_FAILED',reason:error.message,at:this.now()};this.schedule(token);return;}
     this.socket=socket;
-    const ctx={socket,token,closed:false,pending:new Map(),acked:new Set(),lastData:new Map(),sequence:null,baseline:new Set(),queue:Promise.resolve(),queued:0,ackTimer:null,heartbeatTimer:null};this.context=ctx;
+    const ctx={socket,token,closed:false,pending:new Map(),acked:new Set(),ackTimes:new Map(),lastData:new Map(),sequence:null,baseline:new Set(),queue:Promise.resolve(),queued:0,ackTimer:null,heartbeatTimer:null};this.context=ctx;
     const current=()=>token===this.generation&&this.context===ctx&&!ctx.closed;
     const fail=(code,error)=>{if(!current())return;this.lastError={code,reason:String(error?.message||error),at:this.now()};this.lastDisconnect=this.lastError;this.setStatus('failed');this.release(ctx);try{socket.close(1000,'transport recovery');}catch{}this.schedule(token);};
     const heartbeat=()=>{clearTimeout(ctx.heartbeatTimer);ctx.heartbeatTimer=setTimeout(()=>fail('HEARTBEAT_TIMEOUT','Coinbase heartbeat timeout'),this.heartbeatTimeoutMs);};
@@ -52,10 +52,11 @@ class CoinbaseMarketTransport extends BingxMarketTransport {
         if(ctx.sequence!==null&&p.sequence_num!==ctx.sequence+1){this.sequenceGaps++;fail('SEQUENCE_GAP',`Expected ${ctx.sequence+1}, received ${p.sequence_num}`);return;}ctx.sequence=p.sequence_num;
         if(p.channel==='heartbeats'){this.heartbeatCount++;this.lastHeartbeatAt=this.now();heartbeat();return;}
         if(p.channel==='subscriptions'){
-          for(const event of p.events||[]){const ack=event.subscriptions||{};ctx.acked.clear();
+          for(const event of p.events||[]){const ack=event.subscriptions||{};ctx.acked.clear();ctx.ackTimes.clear();
             for(const symbol of this.topics)if(Array.isArray(ack.market_trades)&&ack.market_trades.includes(symbol))ctx.acked.add(`market_trades:${symbol}`);
             if(Array.isArray(ack.heartbeats)&&ack.heartbeats.includes('heartbeats'))ctx.acked.add('heartbeats');
           }
+          for(const topic of ctx.acked)ctx.ackTimes.set(topic,this.now());
           if(ctx.acked.size===this.topics.length+1){ctx.pending.clear();clearTimeout(ctx.ackTimer);}return;
         }
         if(p.channel!=='market_trades')return;

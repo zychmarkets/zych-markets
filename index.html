@@ -135,7 +135,7 @@
   </div>
   <div id="alerts-panel-backdrop" class="alerts-panel-backdrop" hidden></div>
   <aside id="alerts-panel" class="alerts-panel" aria-label="Alerts panel" aria-hidden="true">
-    <header><div><h2>Alert Hub</h2><span id="alert-monitor-status" data-status="offline"><i></i> Offline</span></div><button type="button" data-close-alerts-panel aria-label="Close">×</button></header>
+    <header><div><h2>Alert Hub</h2><button id="alert-monitor-status" class="alert-monitor-status" type="button" data-status="offline" aria-expanded="false" aria-controls="alert-reliability-details"><i></i><span>Offline</span></button><div id="alert-reliability-details" class="alert-reliability-details" role="status" hidden></div></div><button type="button" data-close-alerts-panel aria-label="Close">×</button></header>
     <div class="alert-sound-controls">
       <label for="alert-sound-select">Sound</label>
       <select id="alert-sound-select" aria-label="Alert sound"><option value="zych-pulse">ZYCH Pulse</option><option value="soft-bell">Soft Bell</option><option value="terminal">Terminal</option><option value="urgent">Urgent</option></select>
@@ -160,7 +160,8 @@
   <script src="js/services/instrument-search.js"></script>
   <script src="js/services/i18n.js"></script>
   <script src="js/services/radar-event.js"></script>
-  <script src="js/services/markets-data.js"></script>
+  <script src="js/services/markets-data.js"></script>\n  <script src="js/services/snapshot-reliability.js"></script>
+  <script src="js/services/reliability-ux.js"></script>
   <script src="js/services/reliability-contract.js"></script>
   <script src="js/services/reliability-reducer.js"></script>
   <script src="js/services/chart-reliability.js"></script>

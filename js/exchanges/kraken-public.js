@@ -48,7 +48,7 @@
       const source=sources[0];fields[key]=source?.[key]??null;provenance.fields[key]=source?{source:source===w?'kraken-ws-v2-ticker':'kraken-rest-ticker',sourceTimestamp:source.sourceTimestamp,receivedAt:source.receivedAt}:null;
     }
     const received=[r?.receivedAt,w?.receivedAt].filter(Number.isFinite),availability=Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,v!==null]));
-    return{marketId:`kraken:spot:${row.nativeSymbol}`,symbol:row.nativeSymbol,...fields,lastPrice:fields.price,changePercent:fields.change24h,high:fields.high24h,low:fields.low24h,quoteVolume24h:null,volume:null,sourceTimestamp:provenance.fields.price?.sourceTimestamp??null,snapshotTimestamp:null,receivedAt:received.length?Math.max(...received):null,availability:{...availability,quoteVolume24h:false},provenance};
+    return{marketId:`kraken:spot:${row.nativeSymbol}`,symbol:row.nativeSymbol,...fields,lastPrice:fields.price,changePercent:fields.change24h,high:fields.high24h,low:fields.low24h,quoteVolume24h:null,volume:null,sourceTimestamp:provenance.fields.price?.sourceTimestamp??null,snapshotTimestamp:null,receivedAt:received.length?Math.max(...received):null,receiptTimestamp:received.length?Math.max(...received):null,lastSnapshotAt:received.length?Math.max(...received):null,processingTimestamp:now,cacheStoredAt:null,cacheHit:false,availability:{...availability,quoteVolume24h:false},provenance};
   }
   return{capabilities,numeric,unwrap,registry,instrument,restTicker,wsTicker,snapshot};
 });

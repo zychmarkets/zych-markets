@@ -1,20 +1,26 @@
 'use strict';
-// Catalog eligibility is not socket health. Compose them only at the diagnostics boundary.
+const expectedIntervals=Object.freeze(['1m','5m','15m']);
 function radarCoverage(catalog={},ingestion={}){
   const expected=catalog.expectedExchanges||[],exchanges={};
-  for(const exchange of expected){const source=catalog.exchanges?.[exchange]||{},stream=ingestion.exchanges?.[exchange];let status=source.status||(catalog.healthyExchanges?.includes(exchange)?'HEALTHY':'UNAVAILABLE');
-    if(stream&&(stream.requestedTopics??stream.subscriptions)===0&&status==='HEALTHY')status='PARTIAL';
-    if((stream?.requestedTopics??stream?.subscriptions)>0&&status==='HEALTHY'){
-      if(!stream.activeSockets)status='OFFLINE';
+  for(const exchange of expected){
+    const source=catalog.exchanges?.[exchange]||{},stream=ingestion.exchanges?.[exchange],intervals=stream?.intervals||[];
+    let status=source.status||(catalog.healthyExchanges?.includes(exchange)?'HEALTHY':'UNAVAILABLE');
+    if(status==='HEALTHY'){
+      if(!stream){}
+      else if(!stream.activeSockets&&((stream.requestedTopics||0)>0||(stream.subscriptions||0)>0))status=stream.connectingSockets?'DEGRADED':'OFFLINE';
+      else if(!Number.isInteger(stream.requestedTopics)||stream.requestedTopics<=0)status='PARTIAL';
+      else if(stream.failedTopics>0)status='PARTIAL';
+      else if((stream.acknowledgedTopics||0)+(stream.notApplicableTopics||0)<stream.requestedTopics)status='PARTIAL';
+      else if(intervals.length&&expectedIntervals.some(frame=>!intervals.some(row=>row.timeframe===frame&&row.fresh&&row.continuity==='VERIFIED')))status=intervals.some(row=>row.state==='STALE')?'STALE':'PARTIAL';
+      else if(intervals.length&&intervals.some(row=>!row.fresh||row.state!=='COMPLETE'))status=intervals.some(row=>row.state==='STALE')?'STALE':'PARTIAL';
       else if(stream.status==='stale')status='STALE';
-      else if(stream.failedTopics||stream.acknowledgedTopics<stream.requestedTopics||stream.freshTopics<stream.requestedTopics)status='PARTIAL';
-      else if(stream.status&&stream.status!=='live')status='DEGRADED';
+      else if(stream.stateQuality&&stream.stateQuality.COMPLETE<stream.stateQuality.total)status='PARTIAL';
+      else if(!intervals.length&&stream.status&&stream.status!=='live')status='DEGRADED';
     }
-    if(status==='HEALTHY'&&stream?.stateQuality){const quality=stream.stateQuality;if(quality.STALE)status='STALE';else if(quality.COMPLETE<quality.total)status='PARTIAL'}
     exchanges[exchange]={...source,status,catalogStatus:source.status||status,...(stream?{ingestion:stream}:{})};
   }
   const healthy=expected.filter(exchange=>exchanges[exchange].status==='HEALTHY');
   const status=expected.length&&healthy.length===expected.length?'HEALTHY':healthy.length?'DEGRADED':expected.some(exchange=>exchanges[exchange].status==='STALE')?'STALE':'UNAVAILABLE';
   return{...catalog,status,expectedExchanges:[...expected],healthyExchanges:healthy,exchanges};
 }
-module.exports={radarCoverage};
+module.exports={radarCoverage,expectedIntervals};
