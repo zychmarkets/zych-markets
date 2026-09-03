@@ -1,5 +1,6 @@
 (function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./kraken-public.js'):root.ZychKrakenPublic);if(typeof module==='object'&&module.exports)module.exports=api;else root.ZychKrakenChart=api;})(typeof window!=='undefined'?window:globalThis,function(contract){
   'use strict';
+  const reliabilityContract=typeof module==='object'&&module.exports?require('../services/chart-reliability'):window.ZychChartReliability;
   const intervals=Object.freeze({'1m':1,'5m':5,'15m':15,'1h':60,'4h':240,'1d':1440,'1w':10080});
   const historyLimit='HISTORY LIMITED · Kraken public OHLC provides only the recent retained window.';
   function validate(adapter,market,frame){
@@ -27,6 +28,7 @@
   }
   function socket(adapter,market,frame,handlers){
     const instrument=validate(adapter,market,frame),interval=intervals[frame];
+    const reliability=reliabilityContract.bind(market,frame,handlers,adapter.now);handlers=reliability.handlers;
     // A dedicated replacement socket avoids competing intervals on one symbol.
     const ws=adapter.socketFactory('wss://ws.kraken.com/v2'),controller=new AbortController();
     const state={nativeSymbol:market.symbol,symbol:instrument.wsSymbol,interval,acknowledged:false,lastMessage:null,lastHeartbeat:null,lastCandle:null,snapshots:0,updates:0,reconciliations:0};
@@ -36,9 +38,9 @@
     const cleanup=()=>{closed=true;controller.abort();clearTimeout(connectTimer);clearTimeout(ackTimer);clearInterval(watchdog);queue=[];};
     ws.close=(...args)=>{cleanup();return close(...args);};
     const fail=error=>{if(closed)return;handlers.error?.(error);cleanup();close();};
-    const status=()=>handlers.status?.(ready&&state.acknowledged&&state.lastCandle&&adapter.now()-state.lastCandle<60000?'LIVE':'WAITING');
+    const status=()=>handlers.status?.();
     async function repair(){
-      if(repairing||closed)return;repairing=true;
+      if(repairing||closed)return;repairing=true;handlers.continuity('RECOVERING');
       try{
         const rows=await candles(adapter,market,frame,null,1000,controller.signal);if(!active())return;
         // REST commits prior intervals; the final row remains provisional. Pending
@@ -46,30 +48,32 @@
         const previous=current,latest=rows.at(-1);
         if(previous&&latest&&previous.time>=latest.time&&(previous.time>latest.time||previous.volume>=latest.volume)){const index=rows.findIndex(row=>row.time===previous.time);if(index>=0)rows[index]=previous;else rows.push(previous);}
         handlers.reconcile?.(rows);current=rows.at(-1)||null;ready=true;lastRepair=adapter.now();state.reconciliations++;
-        const pending=queue;queue=[];for(const row of pending)apply(row);status();report();
+        const pending=queue;queue=[];for(const item of pending)apply(item.row,item.receiptTimestamp,item.qualifying);handlers.continuity(rows.length?'VERIFIED':'RECOVERING');status();report();
       }catch(error){if(!closed)fail(error);}finally{repairing=false;}
     }
-    function apply(row){
+    function apply(row,receiptTimestamp,qualifying){
       if(current&&(row.time<current.time||row.time===current.time&&row.volume<current.volume))return;
-      const progressed=current&&row.time>current.time;current=row;handlers.candle?.(row);
+      const progressed=current&&row.time>current.time;if(progressed)handlers.continuity('RECOVERING');current=row;handlers.candle?.(row);
+      if(qualifying){state.lastCandle=receiptTimestamp;handlers.marketData({receiptTimestamp});}
       if(progressed)void repair();
     }
     connectTimer=setTimeout(()=>fail(new Error('Kraken connection timeout')),15000);
     ws.addEventListener('open',()=>{if(!active())return;clearTimeout(connectTimer);handlers.open?.();handlers.status?.('SUBSCRIBING');state.lastMessage=adapter.now();
       ws.send(JSON.stringify({method:'subscribe',params:{channel:'ohlc',symbol:[instrument.wsSymbol],interval,snapshot:true},req_id:1}));
+      handlers.requested();
       ackTimer=setTimeout(()=>fail(new Error('Kraken OHLC ACK timeout')),15000);
       watchdog=setInterval(()=>{if(adapter.now()-state.lastMessage>15000)fail(new Error('Kraken transport timeout'));else if(state.acknowledged){status();if(ready&&adapter.now()-lastRepair>=60000)void repair();}},5000);
     });
     ws.addEventListener('close',event=>{cleanup();handlers.close?.(event);});
     ws.addEventListener('error',()=>fail(new Error('Kraken WebSocket error')));
-    ws.addEventListener('message',event=>{if(!active())return;try{
+    ws.addEventListener('message',event=>{if(!active())return;const receiptTimestamp=adapter.now();try{
       if(typeof event.data!=='string'||event.data.length>1048576)throw new Error('Invalid Kraken frame');
       const p=JSON.parse(event.data);state.lastMessage=adapter.now();
-      if(p.channel==='heartbeat'){state.lastHeartbeat=adapter.now();report();return;}
+      if(p.channel==='heartbeat'){state.lastHeartbeat=adapter.now();handlers.heartbeat();report();return;}
       if(p.channel==='status'){if(p.data?.[0]?.system!=='online')throw new Error('Kraken system unavailable');return;}
       if(p.method==='subscribe'){
-        if(p.req_id!==1||p.success!==true||p.result?.channel!=='ohlc'||p.result.symbol!==instrument.wsSymbol||p.result.interval!==interval||p.result.snapshot!==true)throw new Error(p.error||'Kraken OHLC ACK mismatch');
-        state.acknowledged=true;clearTimeout(ackTimer);handlers.status?.('WAITING');report();void repair();return;
+        if(p.req_id!==1||p.success!==true||p.result?.channel!=='ohlc'||p.result.symbol!==instrument.wsSymbol||p.result.interval!==interval||p.result.snapshot!==true){handlers.rejected(new Error(p.error||'Kraken OHLC ACK mismatch'));throw new Error(p.error||'Kraken OHLC ACK mismatch');}
+        state.acknowledged=true;clearTimeout(ackTimer);handlers.acknowledged();report();void repair();return;
       }
       if(p.channel!=='ohlc')return;
       if(!state.acknowledged||!['snapshot','update'].includes(p.type)||!Array.isArray(p.data)||p.data.length>721)throw new Error('Invalid Kraken OHLC event');
@@ -81,11 +85,10 @@
       }).sort((a,b)=>a.time-b.time);
       state[p.type==='snapshot'?'snapshots':'updates']++;
       // An old snapshot is not evidence of fresh candles, nor is a heartbeat.
-      if(p.type==='update'&&rows.some(row=>row.time>=(current?.time??0)&&row.time+interval*60>adapter.now()/1000))state.lastCandle=adapter.now();
-      for(const row of rows){if(!ready||repairing){if(queue.length>=20000)throw new Error('Kraken reconciliation queue overflow');queue.push(row);}else apply(row);}
+      for(const row of rows){const qualifying=p.type==='update'&&row.time>=(current?.time??0)&&row.time+interval*60>receiptTimestamp/1000;if(!ready||repairing){if(queue.length>=20000)throw new Error('Kraken reconciliation queue overflow');queue.push({row,receiptTimestamp,qualifying});}else apply(row,receiptTimestamp,qualifying);}
       status();report();
     }catch(error){fail(error);}});
-    return ws;
+    return reliability.attach(ws);
   }
   return {intervals,historyLimit,validate,normalize,candles,socket};
 });

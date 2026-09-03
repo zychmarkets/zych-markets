@@ -47,7 +47,7 @@
     async initial(market, timeframe, signal) {
       const entry = this.entry(market, timeframe), target = INITIAL_CANDLES[timeframe] || PAGE_LIMIT;
       if (entry.loading) { try { await entry.loading; } catch (error) { if (signal?.aborted) throw error; } }
-      if (entry.candles.length >= target || entry.endReached) return { key: entry.key, data: entry.candles, pages: entry.pages, endReached: entry.endReached, cached: true };
+      if (entry.candles.length >= target || entry.endReached) return { key: entry.key, data: entry.candles, pages: entry.pages, endReached: entry.endReached, cached: true, cacheStoredAt:entry.cacheStoredAt??null };
       entry.loading = (async () => {
         const firstPage=entry.pages,budget=this.adapters?.[market.exchange]?.initialPageBudget??Infinity;
         while (entry.candles.length < target && !entry.endReached && entry.pages-firstPage<budget) {
@@ -59,14 +59,14 @@
           try {
             const rows = await this.request(market, timeframe, endTime, signal, limit);
             if (signal?.aborted) throw signal.reason || new DOMException('Aborted', 'AbortError');
-            const added = this.merge(entry, rows); entry.pages += 1;
+            const added = this.merge(entry, rows); entry.pages += 1;entry.cacheStoredAt=Date.now();
             entry.nextEndTime=rows.nextEndTime;
             if (rows.exhausted===true || rows.exhausted===undefined&&(!rows.length || rows.length < limit || added === 0)) entry.endReached = true;
           } catch (error) { entry.requestedEnds.delete(requestKey); throw error; }
         }
       })();
       try { await entry.loading; } finally { entry.loading = null; }
-      return { key: entry.key, data: entry.candles, pages: entry.pages, endReached: entry.endReached, cached: false };
+      return { key: entry.key, data: entry.candles, pages: entry.pages, endReached: entry.endReached, cached: false, cacheStoredAt:entry.cacheStoredAt??null };
     }
     async older(market, timeframe, signal) {
       const entry = this.entry(market, timeframe);

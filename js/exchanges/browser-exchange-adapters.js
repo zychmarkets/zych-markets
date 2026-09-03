@@ -3,6 +3,7 @@
   const data=global.ZychMarketsData||(typeof require==='function'?require('../services/markets-data.js'):null);
   const coinbase=global.ZychCoinbasePublic||(typeof require==='function'?require('./coinbase-public.js'):null);
   const coinbaseChart=global.ZychCoinbaseChart||(typeof require==='function'?require('./coinbase-chart.js'):null);
+  const chartReliability=global.ZychChartReliability||(typeof require==='function'?require('../services/chart-reliability.js'):null);
   const {KrakenBrowserAdapter}=global.ZychKrakenBrowser||(typeof require==='function'?require('./kraken-browser.js'):{});
   const timeoutFetch = async (url, signal, timeout = 10000, fetchImpl=global.fetch) => {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), timeout), abort = () => controller.abort(signal?.reason);
@@ -26,7 +27,9 @@
     return data.number(value);
   };
   const bingxInterval = Object.freeze({...binanceInterval});
-  const bingxWsInterval = Object.freeze({...bingxInterval,'1m':'1min','5m':'5min','15m':'15min','30m':'30min'});
+  // Spot wire names differ from REST (and the swap stream). Verified on the
+  // configured Spot endpoint; REST/UI interval names remain unchanged.
+  const bingxWsInterval = Object.freeze({'1m':'1min','5m':'5min','15m':'15min','30m':'30min','1h':'60min','4h':'4hour','1d':'1day','1w':'1week','1M':'1mon'});
   const bingxCandle = row => {
     if(!Array.isArray(row))return null;
     const values=row.slice(0,6).map(data.number);
@@ -51,7 +54,17 @@
     async allSnapshots(signal) { const receivedAt=this.now(),rows = await timeoutFetch(`${this.restBase}/ticker/24hr`, signal,10000,this.fetchImpl); return rows.map(row => ({ marketId: `${this.id}:spot:${row.symbol}`, symbol: row.symbol, ...this.normalizeTicker(row,receivedAt) })); }
     async snapshots(markets, signal) { const receivedAt=this.now(),symbols = markets.map(item => item.symbol), rows = await timeoutFetch(`${this.restBase}/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`, signal,10000,this.fetchImpl); return Object.fromEntries(rows.map(row => [`${this.id}:spot:${row.symbol}`, this.normalizeTicker(row,receivedAt)])); }
     async candles(marketValue, timeframe, endTime, limit, signal) { const interval=binanceInterval[timeframe];if(!interval)throw new Error('Unsupported Binance interval');const end = Number.isFinite(endTime) ? `&endTime=${Math.floor(endTime)}` : ''; const rows = await timeoutFetch(`${this.restBase}/klines?symbol=${encodeURIComponent(marketValue.symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}${end}`, signal); return rows.map(candle); }
-    socket(marketValue, timeframe, handlers) { const interval=binanceInterval[timeframe],socket = new WebSocket(`${this.wsBase}/${marketValue.symbol.toLowerCase()}@kline_${interval}`); socket.addEventListener('open', handlers.open); socket.addEventListener('close', handlers.close); socket.addEventListener('error', handlers.error); socket.addEventListener('message', event => { try { const row = JSON.parse(event.data).k; if (row) handlers.candle({ time: Math.floor(row.t / 1000), open: +row.o, high: +row.h, low: +row.l, close: +row.c, volume: +row.v }); } catch (error) { handlers.error(error); } }); return socket; }
+    socket(marketValue, timeframe, handlers) {
+      const reliability=chartReliability.bind(marketValue,timeframe,handlers,this.now);handlers=reliability.handlers;
+      const interval=binanceInterval[timeframe],stream=`${marketValue.symbol.toLowerCase()}@kline_${interval}`,socket=new WebSocket(`${this.wsBase}/${stream}`);
+      socket.addEventListener('open',()=>{handlers.open();handlers.requested();});socket.addEventListener('close',handlers.close);socket.addEventListener('error',handlers.error);
+      socket.addEventListener('message',event=>{if(socket.readyState!==1)return;const receiptTimestamp=this.now();try{
+        const envelope=JSON.parse(event.data);if(envelope.stream&&envelope.stream!==stream)return;const p=envelope.stream?envelope.data:envelope,row=p?.k;
+        if(p?.e!=='kline'||p.s!==marketValue.symbol||row?.s!==marketValue.symbol||row.i!==interval)return;
+        const value=bingxCandle([row.t,row.o,row.h,row.l,row.c,row.v]);if(!value)throw new Error('Malformed Binance kline');
+        handlers.candle(value);handlers.marketData({receiptTimestamp,sourceTimestamp:p.E,candleTime:value.time});
+      }catch(error){handlers.error(error);}});return reliability.attach(socket);
+    }
   }
 
   class BybitBrowserAdapter {
@@ -62,7 +75,20 @@
     async allSnapshots(signal) { const value=await timeoutFetch(`${this.restBase}/tickers?category=spot`, signal,10000,this.fetchImpl),receivedAt=data.timestamp(value.time,this.now()),result = this.unwrap(value); return (result.list || []).map(row => ({ marketId: `${this.id}:spot:${row.symbol}`, symbol: row.symbol, ...this.normalizeTicker(row,receivedAt) })); }
     async snapshots(markets, signal) { const value=await timeoutFetch(`${this.restBase}/tickers?category=spot`, signal,10000,this.fetchImpl),receivedAt=data.timestamp(value.time,this.now()),result = this.unwrap(value), wanted = new Map(markets.map(item => [item.symbol, item.id])); return Object.fromEntries((result.list || []).filter(row => wanted.has(row.symbol)).map(row => [wanted.get(row.symbol), this.normalizeTicker(row,receivedAt)])); }
     async candles(marketValue, timeframe, endTime, limit, signal) { const interval = bybitInterval[timeframe]; if (!interval) throw new Error('Unsupported Bybit interval'); const end = Number.isFinite(endTime) ? `&end=${Math.floor(endTime)}` : ''; const result = this.unwrap(await timeoutFetch(`${this.restBase}/kline?category=spot&symbol=${encodeURIComponent(marketValue.symbol)}&interval=${interval}&limit=${Math.min(1000, limit)}${end}`, signal)); return (result.list || []).map(candle).sort((a, b) => a.time - b.time); }
-    socket(marketValue, timeframe, handlers) { const interval = bybitInterval[timeframe]; const socket = new WebSocket(this.wsBase); socket.addEventListener('open', () => { socket.send(JSON.stringify({ op: 'subscribe', args: [`kline.${interval}.${marketValue.symbol}`] })); handlers.open(); }); socket.addEventListener('close', handlers.close); socket.addEventListener('error', handlers.error); socket.addEventListener('message', event => { try { const payload = JSON.parse(event.data); if (!String(payload.topic || '').startsWith('kline.')) return; const row = payload.data?.[0]; if (row) handlers.candle({ time: Math.floor(Number(row.start) / 1000), open: +row.open, high: +row.high, low: +row.low, close: +row.close, volume: +row.volume }); } catch (error) { handlers.error(error); } }); return socket; }
+    socket(marketValue,timeframe,handlers){
+      const reliability=chartReliability.bind(marketValue,timeframe,handlers,this.now);handlers=reliability.handlers;
+      const interval=bybitInterval[timeframe],topic=`kline.${interval}.${marketValue.symbol}`,id=global.crypto.randomUUID(),socket=new WebSocket(this.wsBase);let pingTimer;
+      socket.addEventListener('open',()=>{handlers.open();socket.send(JSON.stringify({op:'subscribe',req_id:id,args:[topic]}));handlers.requested();pingTimer=setInterval(()=>{if(socket.readyState===1)socket.send(JSON.stringify({op:'ping'}));},20000);});
+      socket.addEventListener('close',event=>{clearInterval(pingTimer);handlers.close(event);});socket.addEventListener('error',handlers.error);
+      socket.addEventListener('message',event=>{if(socket.readyState!==1)return;const receiptTimestamp=this.now();try{
+        const p=JSON.parse(event.data);
+        if(p.op==='ping'&&p.ret_msg==='pong'||p.op==='pong'){handlers.heartbeat();return;}
+        if(p.op==='subscribe'){if(p.req_id!==id)return;if(p.success===true)handlers.acknowledged();else handlers.rejected(new Error(p.ret_msg||'Bybit subscription rejected'));return;}
+        if(p.topic!==topic)return;const row=p.data?.[0];if(!row)return;
+        const value=bingxCandle([row.start,row.open,row.high,row.low,row.close,row.volume]);if(!value||String(row.interval)!==interval)throw new Error('Malformed Bybit kline');
+        handlers.candle(value);handlers.marketData({receiptTimestamp,sourceTimestamp:p.ts,candleTime:value.time});
+      }catch(error){handlers.error(error);}});return reliability.attach(socket);
+    }
   }
 
   class OkxBrowserAdapter {
@@ -73,7 +99,19 @@
     async allSnapshots(signal) { const rows = this.unwrap(await timeoutFetch(`${this.restBase}/market/tickers?instType=SPOT`, signal,10000,this.fetchImpl)); return rows.map(row => ({ marketId: `${this.id}:spot:${row.instId}`, symbol: row.instId, ...this.normalizeTicker(row) })); }
     async snapshots(markets, signal) { const rows = this.unwrap(await timeoutFetch(`${this.restBase}/market/tickers?instType=SPOT`, signal,10000,this.fetchImpl)), wanted = new Map(markets.map(item => [item.symbol, item.id])); return Object.fromEntries(rows.filter(row => wanted.has(row.instId)).map(row => [wanted.get(row.instId), this.normalizeTicker(row)])); }
     async candles(marketValue, timeframe, endTime, limit, signal) { const bar = okxInterval[timeframe]; if (!bar) throw new Error('Unsupported OKX interval'); const result = new Map(); let cursor = Number.isFinite(endTime) ? Math.floor(endTime) : null; while (result.size < limit) { const pageSize = Math.min(300, limit - result.size), after = Number.isFinite(cursor) ? `&after=${cursor}` : '', rows = this.unwrap(await timeoutFetch(`${this.restBase}/market/candles?instId=${encodeURIComponent(marketValue.symbol)}&bar=${bar}&limit=${pageSize}${after}`, signal)); rows.map(candle).forEach(item => result.set(item.time, item)); if (rows.length < pageSize) break; const oldest = Math.min(...rows.map(row => Number(row[0]))); if (!Number.isFinite(oldest) || oldest === cursor) break; cursor = oldest; } return [...result.values()].sort((a, b) => a.time - b.time); }
-    socket(marketValue, timeframe, handlers) { const bar = okxInterval[timeframe], socket = new WebSocket(this.wsBase); socket.addEventListener('open', () => { socket.send(JSON.stringify({ op: 'subscribe', args: [{ channel: `candle${bar}`, instId: marketValue.symbol }] })); handlers.open(); }); socket.addEventListener('close', handlers.close); socket.addEventListener('error', handlers.error); socket.addEventListener('message', event => { try { const payload = JSON.parse(event.data); if (payload.arg?.channel !== `candle${bar}` || payload.arg?.instId !== marketValue.symbol) return; const row = payload.data?.[0]; if (row) handlers.candle(candle(row)); } catch (error) { handlers.error(error); } }); return socket; }
+    socket(marketValue,timeframe,handlers){
+      const reliability=chartReliability.bind(marketValue,timeframe,handlers,this.now);handlers=reliability.handlers;
+      const channel=`candle${okxInterval[timeframe]}`,id=global.crypto.randomUUID().replace(/-/g,''),socket=new WebSocket(this.wsBase);let pingTimer;
+      socket.addEventListener('open',()=>{handlers.open();socket.send(JSON.stringify({id,op:'subscribe',args:[{channel,instId:marketValue.symbol}]}));handlers.requested();pingTimer=setInterval(()=>{if(socket.readyState===1)socket.send('ping');},20000);});
+      socket.addEventListener('close',event=>{clearInterval(pingTimer);handlers.close(event);});socket.addEventListener('error',handlers.error);
+      socket.addEventListener('message',event=>{if(socket.readyState!==1)return;const receiptTimestamp=this.now();try{
+        if(event.data==='pong'){handlers.heartbeat();return;}const p=JSON.parse(event.data),exact=p.arg?.channel===channel&&p.arg?.instId===marketValue.symbol;
+        if(p.event==='error'){if(p.id===id||exact)handlers.rejected(new Error(p.msg||'OKX subscription rejected'));return;}
+        if(!exact)return;if(p.event==='subscribe'){handlers.acknowledged();return;}
+        const row=p.data?.[0];if(!row)return;const value=bingxCandle(row.slice(0,6));if(!value)throw new Error('Malformed OKX candle');
+        handlers.candle(value);handlers.marketData({receiptTimestamp,candleTime:value.time});
+      }catch(error){handlers.error(error);}});return reliability.attach(socket);
+    }
   }
   class BingxBrowserAdapter {
     constructor({ restBase = 'https://open-api.bingx.com', historyBase='https://open-api.bingx.com', wsBase='wss://open-api-ws.bingx.com/market', catalogPath='/openApi/spot/v1/common/symbols', tickerPath='/openApi/spot/v1/ticker/24hr', fetchImpl=global.fetch, socketFactory=url=>new global.WebSocket(url), decodeFrame=decodeBingxFrame, ackTimeoutMs=15000, heartbeatTimeoutMs=45000, now=Date.now } = {}) { this.id='bingx';this.requiresSubscriptionAck=true;Object.assign(this,{restBase,historyBase,wsBase,catalogPath,tickerPath,fetchImpl,socketFactory,decodeFrame,ackTimeoutMs,heartbeatTimeoutMs,now}); }
@@ -98,6 +136,7 @@
     }
     socket(marketValue,timeframe,handlers) {
       this.validateChart(marketValue,timeframe);
+      const reliability=chartReliability.bind(marketValue,timeframe,handlers,this.now);handlers=reliability.handlers;
       if(this.decodeFrame===decodeBingxFrame&&typeof global.DecompressionStream!=='function')throw new Error('BingX GZIP is unavailable in this browser');
       const socket=this.socketFactory(this.wsBase),id=global.crypto.randomUUID(),topic=`${marketValue.symbol}@kline_${bingxWsInterval[timeframe]}`;
       socket.binaryType='arraybuffer';
@@ -107,23 +146,24 @@
       const close=socket.close.bind(socket);socket.close=(...args)=>{cleanup();return close(...args);};
       const fail=error=>{if(closed)return;cleanup();handlers.error(error);close();};
       const heartbeat=()=>{clearTimeout(heartbeatTimer);heartbeatTimer=setTimeout(()=>fail(new Error('BingX heartbeat timeout')),this.heartbeatTimeoutMs);};
-      const verify=()=>{if(!verified){verified=true;clearTimeout(ackTimer);handlers.status?.('LIVE');}};
-      socket.addEventListener('open',()=>{if(!active())return;handlers.open?.();handlers.status?.('SUBSCRIBING');socket.send(JSON.stringify({id,reqType:'sub',dataType:topic}));ackTimer=setTimeout(()=>fail(new Error('BingX subscription timeout')),this.ackTimeoutMs);heartbeat();});
+      const verify=()=>{if(!verified){verified=true;clearTimeout(ackTimer);handlers.acknowledged();}};
+      socket.addEventListener('open',()=>{if(!active())return;handlers.open?.();socket.send(JSON.stringify({id,reqType:'sub',dataType:topic}));handlers.requested();ackTimer=setTimeout(()=>fail(new Error('BingX subscription timeout')),this.ackTimeoutMs);heartbeat();});
       socket.addEventListener('close',event=>{cleanup();handlers.close?.(event);});
       socket.addEventListener('error',()=>fail(new Error('BingX WebSocket error')));
       socket.addEventListener('message',event=>{
         if(!active())return;
+        const receiptTimestamp=this.now();
         if(++pending>64){fail(new Error('BingX message queue overflow'));return;}
         queue=queue.then(async()=>{
           if(!active())return;
           const text=await this.decodeFrame(event.data);if(!active())return;
-          if(text==='Ping'||text==='ping'){heartbeat();socket.send('Pong');return;}
+          if(text==='Ping'||text==='ping'){heartbeat();handlers.heartbeat();socket.send('Pong');return;}
           const payload=JSON.parse(text);
           if(!payload||typeof payload!=='object')throw new Error('BingX malformed message');
-          if(!payload.dataType&&Object.hasOwn(payload,'ping')){heartbeat();socket.send('Pong');return;}
+          if(!payload.dataType&&Object.hasOwn(payload,'ping')){heartbeat();handlers.heartbeat();socket.send('Pong');return;}
           if(Object.hasOwn(payload,'id')){
             if(payload.id!==id)return;
-            if(payload.code!==0)throw new Error(`BingX subscription rejected: ${payload.code}`);
+            if(payload.code!==0){const error=new Error(`BingX subscription rejected: ${payload.code} ${payload.msg||''}`);handlers.rejected(error);throw error;}
             heartbeat();verify();return;
           }
           if(payload.dataType!==topic)return;
@@ -132,10 +172,11 @@
           const row=payload.data?.K,value=bingxCandle(row&&[row.t,row.o,row.h,row.l,row.c,row.v,row.T,row.q]);
           if(!value)throw new Error('BingX malformed live candle');
           if(value.time<lastTime)return;
-          lastTime=value.time;heartbeat();verify();handlers.candle(value);
+          if(row.s&&row.s!==marketValue.symbol||row.i&&row.i!==bingxWsInterval[timeframe])return;
+          lastTime=value.time;heartbeat();handlers.candle(value);handlers.marketData({receiptTimestamp,sourceTimestamp:payload.data.E,candleTime:value.time});
         }).catch(fail).finally(()=>{pending-=1;});
       });
-      return socket;
+      return reliability.attach(socket);
     }
   }
   class CoinbaseBrowserAdapter {

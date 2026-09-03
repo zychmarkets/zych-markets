@@ -689,6 +689,12 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 .connection-bar [data-status="offline"] i,.market-status[data-status="offline"] i,#markets-data-status[data-status="unavailable"] i{background:var(--color-status-offline)}
 .connection-bar [data-status="unavailable"] i,.market-status[data-status="unavailable"] i{background:var(--text-muted);box-shadow:none}
 .connection-bar [data-status="waiting"] i,.market-status[data-status="waiting"] i,.connection-bar [data-status="subscribing"] i,.market-status[data-status="subscribing"] i{background:var(--color-status-warming);box-shadow:none}
+.connection-bar #connection-status{flex:0 0 132px;white-space:nowrap}
+.connection-bar #connection-message{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chart-data-age{flex:0 0 118px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.connection-bar [data-status="waiting_for_data"] i,.market-status[data-status="waiting_for_data"] i,.connection-bar [data-status="stale"] i,.market-status[data-status="stale"] i,.connection-bar [data-status="degraded"] i,.market-status[data-status="degraded"] i,.connection-bar [data-status="unknown"] i,.market-status[data-status="unknown"] i{background:var(--color-status-warming);box-shadow:none}
+.connection-bar [data-status="failed"] i,.market-status[data-status="failed"] i{background:var(--color-status-offline);box-shadow:none}
+.connection-bar [data-status="market_unavailable"] i,.market-status[data-status="market_unavailable"] i{background:var(--text-muted);box-shadow:none}
 #markets-data-status[data-status="partial"] i{background:var(--color-status-partial)}
 .radar-data-state[data-status="loading"],.radar-preparing[data-status="loading"],.radar-page[data-radar-status="loading"] .radar-metrics .neutral-metric{color:var(--color-status-info)}
 .radar-data-state[data-status="warming_up"],.radar-preparing[data-status="warming_up"],.radar-page[data-radar-status="warming_up"] .radar-metrics .neutral-metric{color:var(--color-status-warming)}

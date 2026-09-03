@@ -34,7 +34,7 @@ test('narrow query rejects unknown, duplicated, unbounded and arbitrary upstream
 test('socket open and heartbeat are not LIVE; exact ACK stays separate from data before ACK',async t=>{
  const s=stream(t);s.ws.open();await flush();assert.equal(s.ws.sent.length,2);assert.deepEqual(s.ws.sent[0].product_ids,['BTC-USD']);assert.ok(!s.statuses.includes('LIVE'));
  s.ws.message({channel:'heartbeats',sequence_num:0,events:[]});assert.ok(s.ws.coinbaseState.lastHeartbeat);assert.ok(!s.statuses.includes('LIVE'));
- s.ws.message({channel:'market_trades',sequence_num:1,events:[{type:'update',trades:[trade(1)]}]});assert.equal(s.ws.coinbaseState.confirmed.length,0);assert.equal(s.statuses.at(-1),'LIVE');
+ s.ws.message({channel:'market_trades',sequence_num:1,events:[{type:'update',trades:[trade(1)]}]});assert.equal(s.ws.coinbaseState.confirmed.length,0);assert.equal(s.statuses.at(-1),'SUBSCRIBING');assert.ok(s.ws.chartReliability.snapshot().evidence.data.firstDataAt);
  s.ws.message({channel:'subscriptions',sequence_num:2,events:[{subscriptions:{market_trades:['BTC-USD'],heartbeats:['heartbeats']}}]});assert.equal(s.ws.coinbaseState.confirmed.length,2);
 });
 test('snapshot, wrong product, trade ID replays and same-timestamp legitimate trades',async t=>{
@@ -45,7 +45,7 @@ test('snapshot, wrong product, trade ID replays and same-timestamp legitimate tr
 test('sequence duplicate/out of order suppressed, gap recovers, stale messages ignored',async t=>{
  const s=stream(t);s.ws.open();await flush();const message=seq=>({channel:'market_trades',sequence_num:seq,events:[{type:'update',trades:[trade(seq+1)]}]});
  s.ws.message(message(5));s.ws.message(message(5));s.ws.message(message(4));assert.equal(s.candles.length,1);assert.equal(s.ws.coinbaseState.duplicates,2);
- s.ws.message(message(7));assert.equal(s.statuses.at(-1),'RECOVERING');assert.equal(s.ws.readyState,3);s.ws.message(message(8));assert.equal(s.candles.length,1);
+ s.ws.message(message(7));assert.equal(s.statuses.at(-1),'RECONNECTING');assert.equal(s.ws.readyState,3);s.ws.message(message(8));assert.equal(s.candles.length,1);
  const fresh=s.a.socket(market,'1m',{});assert.equal(fresh.coinbaseState.sequence,null);assert.deepEqual(fresh.coinbaseState.confirmed,[]);fresh.close();
 });
 test('rollover builds real OHLC and base volume without REST overlap',async t=>{
@@ -89,7 +89,7 @@ test('REST page overlap is deduplicated and the next logical page excludes retai
  assert.equal(first.length,1000);assert.equal(second.length,1000);assert.equal(second.at(-1).time,first[0].time-60);
 });
 test('malformed exact trades degrade instead of silently losing candle coverage',async t=>{
- const s=stream(t);s.ws.open();await flush();s.ws.message({channel:'market_trades',sequence_num:0,events:[{type:'update',trades:[trade(1,now,{price:'Infinity'})]}]});assert.equal(s.statuses.at(-1),'RECOVERING');assert.equal(s.candles.length,0);
+ const s=stream(t);s.ws.open();await flush();s.ws.message({channel:'market_trades',sequence_num:0,events:[{type:'update',trades:[trade(1,now,{price:'Infinity'})]}]});assert.equal(s.statuses.at(-1),'RECONNECTING');assert.equal(s.candles.length,0);
 });
 test('initial sparse scan budget yields usable continuation without fabricated exhaustion',async()=>{
  const fs=require('node:fs'),vm=require('node:vm'),sandbox={window:{},Date};vm.runInNewContext(fs.readFileSync(require.resolve('../js/services/chart-history.js'),'utf8'),sandbox);
@@ -97,5 +97,5 @@ test('initial sparse scan budget yields usable continuation without fabricated e
  const service=new sandbox.window.ZychChartHistory.ChartHistoryService({adapters:{coinbase:a}});const first=await service.initial(market,'1m');assert.equal(calls,2);assert.equal(first.endReached,false);await service.older(market,'1m');assert.equal(calls,3);
 });
 test('confirmed quiet feed waits for trades instead of claiming LIVE from heartbeats',async t=>{
- const s=stream(t);s.ws.open();await flush();s.ws.message({channel:'subscriptions',sequence_num:0,events:[{subscriptions:{market_trades:['BTC-USD'],heartbeats:['heartbeats']}}]});s.ws.message({channel:'heartbeats',sequence_num:1,events:[]});assert.equal(s.statuses.at(-1),'WAITING');assert.equal(s.ws.coinbaseState.lastTrade,null);
+ const s=stream(t);s.ws.open();await flush();s.ws.message({channel:'subscriptions',sequence_num:0,events:[{subscriptions:{market_trades:['BTC-USD'],heartbeats:['heartbeats']}}]});s.ws.message({channel:'heartbeats',sequence_num:1,events:[]});assert.equal(s.statuses.at(-1),'WAITING_FOR_DATA');assert.equal(s.ws.coinbaseState.lastTrade,null);
 });

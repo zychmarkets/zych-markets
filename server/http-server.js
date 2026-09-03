@@ -4,6 +4,9 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const {createCoinbasePublicProxy,createCoinbaseCandleProxy,candleQuery}=require('./coinbase-public-proxy.js');
 const {productCapabilities}=require('./product-capabilities.js');
+const {randomUUID}=require('node:crypto');
+const {healthReliability}=require('./reliability-diagnostics');
+const {withReliability}=require('../js/services/reliability-reducer');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 const PUBLIC_FILES = new Set(['index.html','app.js','style.css','sw.js']);
@@ -52,6 +55,7 @@ async function body(req, limit = 32768) {
 
 function createHttpServer({ runner, storage, notifier, universe = null, eventStore = null, eventPipeline = null, radar = null, qualification = null, breadth = null, scorePolicy = null, interpretationPolicy = null, health = null, metrics = null, bingxProxy = null, coinbaseProxy = null, config, logger, startedAt = Date.now() }) {
   let accepting = true;const sockets=new Set(),bingxPublic=bingxProxy||createBingxPublicProxy();
+  const reliabilityInstanceId=randomUUID();
   const coinbasePublic=coinbaseProxy||createCoinbasePublicProxy();
   const coinbaseCandles=createCoinbaseCandleProxy({products:coinbasePublic});
   const server = http.createServer(async (req, res) => {
@@ -73,7 +77,7 @@ function createHttpServer({ runner, storage, notifier, universe = null, eventSto
       if(pathname==='/health/ready'&&req.method==='GET'){const value=health?.ready?.()||{status:'not_ready',lifecycle:'STARTING',reasonCodes:['HEALTH_NOT_INITIALIZED'],timestamp:Date.now()};return send(res,value.status==='ready'?200:503,value)}
       if (pathname.startsWith('/api/')) {
         if (!accepting) return error(res, 503, 'SHUTTING_DOWN', 'Server is shutting down.');
-        if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, { status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), capabilities: productCapabilities(), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } });
+        if (pathname === '/api/health' && req.method === 'GET') return send(res, 200, withReliability({ status: 'ok', uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000), capabilities: productCapabilities(), storage: storage.status(), alerts: runner.diagnostics(), push: notifier.status?.() || { pushEnabled: false, pushSubscriptionsCount: 0 } },healthReliability({now:Date.now(),instanceId:reliabilityInstanceId})));
         if ((pathname === '/api/markets/bingx/catalog' || pathname === '/api/markets/bingx/tickers') && req.method === 'GET') {try{return send(res,200,await bingxPublic(pathname.endsWith('/catalog')?'catalog':'tickers'))}catch(failure){logger.warn('bingx_public_proxy_failed',{endpoint:pathname.endsWith('/catalog')?'catalog':'tickers',name:failure.name,message:failure.message});return error(res,502,'BINGX_UPSTREAM_UNAVAILABLE','BingX public market data is unavailable.')}}
         if(pathname==='/api/markets/bingx/candles'&&req.method==='GET'){
           try{bingxCandleQuery(url.searchParams);}catch{return error(res,400,'INVALID_BINGX_CANDLES','Invalid BingX candle parameters.');}

@@ -1,5 +1,6 @@
 (function(global){
   'use strict';
+  const reliabilityContract=global.ZychChartReliability||(typeof require==='function'?require('../services/chart-reliability'):null);
   const intervals=Object.freeze({'1m':'ONE_MINUTE','5m':'FIVE_MINUTE','15m':'FIFTEEN_MINUTE','1h':'ONE_HOUR','4h':'FOUR_HOUR','1d':'ONE_DAY','1w':'ONE_WEEK','1M':'ONE_MONTH'});
   const seconds={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':604800};
   // Coinbase supplies fractional UTC seconds with variable precision. Pad the
@@ -43,6 +44,7 @@
   }
   function socket(adapter,market,frame,handlers){
     validate(market,frame,adapter.catalogMetadata);
+    const reliability=reliabilityContract.bind(market,frame,handlers,adapter.now);handlers=reliability.handlers;
     const ws=adapter.socketFactory('wss://advanced-trade-ws.coinbase.com'),controller=new AbortController();
     const state={requested:['market_trades','heartbeats'],confirmed:[],productId:market.symbol,sequence:null,lastHeartbeat:null,lastTrade:null,tradeId:null,duplicates:0,gaps:0,provisional:true};
     ws.coinbaseState=state;
@@ -55,16 +57,17 @@
     const fail=error=>{if(closed)return;handlers.status?.('RECOVERING');handlers.error?.(error);cleanup();close();};
     const publish=()=>{report();if(current)handlers.candle({...current});};
     async function repair(initial=false){
-      if(repairing)return;repairing=true;
+      if(repairing)return;repairing=true;handlers.continuity('RECOVERING');
       try{
         const rows=await candles(adapter,market,frame,null,initial?1000:3,controller.signal);if(!active())return;
         const boundary=bucket(adapter.now()/1000,frame);
         handlers.reconcile?.(rows.filter(row=>row.time<boundary));
         lastRepair=adapter.now();
-        if(initial){current=rows.find(row=>row.time===boundary)||null;overlap=boundary;if(current)current={...current,volume:null,provisional:true,source:'coinbase-trades'};ready=true;const pending=queue;queue=[];for(const trade of pending)apply(trade);if(state.lastTrade)handlers.status?.('LIVE');}
+        if(initial){current=rows.find(row=>row.time===boundary)||null;overlap=boundary;if(current)current={...current,volume:null,provisional:true,source:'coinbase-trades'};ready=true;const pending=queue;queue=[];for(const item of pending)apply(item.trade,item.receiptTimestamp);}
+        handlers.continuity(rows.length?'VERIFIED':'RECOVERING');
       }catch(error){if(!closed)fail(error);}finally{repairing=false;}
     }
-    function apply(trade){
+    function apply(trade,receiptTimestamp){
       const time=bucket(Date.parse(trade.time)/1000,frame),price=Number(trade.price),size=Number(trade.size);
       if(current&&time<current.time){void repair();return;}
       if(!current||time>current.time){const previous=current;firstTrade=null;lastTrade=null;current={time,open:price,high:price,low:price,close:price,volume:time===overlap?null:0,source:'coinbase-trades',provisional:true};if(previous)void repair();}
@@ -73,8 +76,9 @@
       if(!lastTrade||compareTrades(trade,lastTrade)>0){lastTrade=trade;current.close=price;}
       if(current.volume!==null)current.volume+=size;
       publish();
+      handlers.marketData({sourceTimestamp:Date.parse(trade.time),receiptTimestamp,price:true});
     }
-    ws.addEventListener('open',()=>{if(!active())return;handlers.open?.();handlers.status?.('SUBSCRIBING');for(const channel of state.requested)ws.send(JSON.stringify({type:'subscribe',channel,product_ids:[market.symbol]}));
+    ws.addEventListener('open',()=>{if(!active())return;handlers.open?.();for(const channel of state.requested)ws.send(JSON.stringify({type:'subscribe',channel,product_ids:[market.symbol]}));handlers.requested();
       ackTimer=setTimeout(()=>fail(new Error('Coinbase subscription confirmation timeout')),15000);
       timer=setInterval(()=>{if(adapter.now()-(state.lastHeartbeat||opened)>15000)fail(new Error('Coinbase heartbeat timeout'));else if(ready&&adapter.now()-lastRepair>=30000)void repair();},5000);const opened=adapter.now();void repair(true);
     });
@@ -82,17 +86,18 @@
     ws.addEventListener('error',()=>fail(new Error('Coinbase WebSocket error')));
     ws.addEventListener('message',event=>{
       if(!active())return;
+      const receiptTimestamp=adapter.now();
       try{
         if(typeof event.data!=='string'||event.data.length>1048576)throw new Error('Invalid Coinbase frame');
-        const payload=JSON.parse(event.data);if(payload.type==='error')throw new Error(payload.message||'Coinbase subscription rejected');
+        const payload=JSON.parse(event.data);if(payload.type==='error'){handlers.rejected(new Error(payload.message||'Coinbase subscription rejected'));throw new Error(payload.message||'Coinbase subscription rejected');}
         const seq=payload.sequence_num;if(!Number.isSafeInteger(seq)||seq<0)throw new Error('Invalid Coinbase sequence');
         if(state.sequence!==null&&seq<=state.sequence){state.duplicates++;report();return;}
-        if(state.sequence!==null&&seq!==state.sequence+1){state.gaps++;report();throw new Error('Coinbase sequence gap');}state.sequence=seq;
+        if(state.sequence!==null&&seq!==state.sequence+1){state.gaps++;handlers.continuity('GAP');report();throw new Error('Coinbase sequence gap');}state.sequence=seq;
         if(payload.channel==='subscriptions'){
           for(const event of payload.events||[]){const ack=event.subscriptions||{};state.confirmed=state.requested.filter(channel=>Array.isArray(ack[channel])&&ack[channel].includes(channel==='heartbeats'?'heartbeats':market.symbol));}
-          if(state.confirmed.length===2){clearTimeout(ackTimer);handlers.status?.(ready&&state.lastTrade?'LIVE':'WAITING');}report();return;
+          if(state.confirmed.length===2){clearTimeout(ackTimer);handlers.acknowledged();}report();return;
         }
-        if(payload.channel==='heartbeats'){state.lastHeartbeat=adapter.now();report();return;}
+        if(payload.channel==='heartbeats'){state.lastHeartbeat=adapter.now();handlers.heartbeat();report();return;}
         if(payload.channel!=='market_trades')return;
         for(const event of payload.events||[]){
           if(!['snapshot','update'].includes(event.type)||!Array.isArray(event.trades))throw new Error('Malformed Coinbase trade event');
@@ -103,13 +108,13 @@
             if(seen.has(trade.trade_id)){state.duplicates++;continue;}seen.add(trade.trade_id);if(seen.size>50000)seen.delete(seen.values().next().value);
             if(event.type!=='update')continue;
             state.lastTrade=trade.time;state.tradeId=trade.trade_id;
-            if(!ready){if(queue.length>=20000)throw new Error('Coinbase repair queue overflow');queue.push(trade);}else apply(trade);
+            if(!ready){if(queue.length>=20000)throw new Error('Coinbase repair queue overflow');queue.push({trade,receiptTimestamp});}else apply(trade,receiptTimestamp);
           }
         }
-        if(ready&&state.lastTrade)handlers.status?.('LIVE');report();
+        report();
       }catch(error){fail(error);}
     });
-    return ws;
+    return reliability.attach(ws);
   }
   const api={intervals,bucket,shift,normalize,validate,candles,socket,compareTrades};if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychCoinbaseChart=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -17,7 +17,7 @@ class Socket {
 }
 const drain=()=>new Promise(resolve=>setImmediate(resolve));
 const packet=(time=1700000000000)=>({code:0,success:true,dataType:'BTC-USDT@kline_1min',data:{s:'BTC-USDT',K:{t:time,T:time+59999,o:'10',h:'12',l:'9',c:'11',v:'2'}}});
-function stream(options={}){const socket=new Socket(),states=[],candles=[],errors=[];const adapter=new BingxBrowserAdapter({socketFactory:()=>socket,...options});adapter.socket(market,'1m',{open:()=>states.push('OPEN'),status:s=>states.push(s),candle:c=>candles.push(c),error:e=>errors.push(e.message),close:()=>states.push('CLOSE')});socket.open();return{socket,adapter,states,candles,errors,id:JSON.parse(socket.sent[0]).id};}
+function stream(options={}){const socket=new Socket(),states=[],candles=[],errors=[];const adapter=new BingxBrowserAdapter({socketFactory:()=>socket,now:()=>1700000001000,...options});adapter.socket(market,'1m',{open:()=>states.push('OPEN'),status:s=>states.push(s),candle:c=>candles.push(c),error:e=>errors.push(e.message),close:()=>states.push('CLOSE')});socket.open();return{socket,adapter,states,candles,errors,id:JSON.parse(socket.sent[0]).id};}
 
 test('BingX Watchlist canonical add/remove, reload, dedup and four exchange distinction',()=>{
   const markets=['binance','bybit','okx','bingx'].map(exchange=>({...market,exchange,symbol:['binance','bybit'].includes(exchange)?'BTCUSDT':'BTC-USDT',id:`${exchange}:spot:${['binance','bybit'].includes(exchange)?'BTCUSDT':'BTC-USDT'}`}));
@@ -57,17 +57,29 @@ test('BingX live cache replaces same candle, rolls forward and ignores older tim
 test('BingX browser GZIP decoder handles ArrayBuffer/Blob, rejects corrupt and oversized frames',async()=>{
   const compressed=gzipSync(JSON.stringify(packet()));assert.deepEqual(JSON.parse(await decodeBingxFrame(compressed)),packet());assert.equal(await decodeBingxFrame(new Blob([gzipSync('Ping')])),'Ping');await assert.rejects(decodeBingxFrame(new Uint8Array([1,2,3])));await assert.rejects(decodeBingxFrame(gzipSync('x'.repeat(1048577))),/too large/);
 });
-test('BingX open is SUBSCRIBING, heartbeat sends Pong, only matching zero ack verifies LIVE',async()=>{
-  const s=stream();try{assert.deepEqual(s.states,['OPEN','SUBSCRIBING']);assert.equal(JSON.parse(s.socket.sent[0]).dataType,'BTC-USDT@kline_1min');s.socket.message('Ping');s.socket.message({id:'unrelated',code:0});await drain();assert.equal(s.socket.sent.at(-1),'Pong');assert.equal(s.states.includes('LIVE'),false);s.socket.message({id:s.id,code:0});await drain();assert.equal(s.states.at(-1),'LIVE');assert.equal(s.candles.length,0);}finally{s.socket.close();}
+test('BingX open is SUBSCRIBING, heartbeat sends Pong, matching zero ack still waits for data',async()=>{
+  const s=stream();try{assert.equal(s.states.at(-1),'SUBSCRIBING');assert.equal(JSON.parse(s.socket.sent[0]).dataType,'BTC-USDT@kline_1min');s.socket.message('Ping');s.socket.message({id:'unrelated',code:0});await drain();assert.equal(s.socket.sent.at(-1),'Pong');assert.equal(s.states.includes('LIVE'),false);s.socket.message({id:s.id,code:0});await drain();assert.equal(s.states.at(-1),'WAITING_FOR_DATA');assert.equal(s.candles.length,0);}finally{s.socket.close();}
 });
 test('BingX negative ack and malformed subscribed payload fail closed',async()=>{
   for(const failure of ['ack','candle','gzip']){const s=stream();s.socket.message(failure==='ack'?{id:s.id,code:100400}:failure==='candle'?{dataType:'BTC-USDT@kline_1min',data:{K:{}}}:'{');await drain();assert.equal(s.errors.length,1);assert.equal(s.states.includes('LIVE'),false);assert.equal(s.socket.readyState,3);}
+  for(const hadData of [false,true])for(const invalid of [{c:'13'},{o:null},{h:'8'},{l:'14'},{v:'-1'}]){
+    let now=1700000001000;const s=stream({now:()=>now});
+    try{
+      s.socket.message({id:s.id,code:0});await drain();
+      if(hadData){s.socket.message(packet());await drain();assert.equal(s.socket.chartReliability.snapshot().state,'LIVE');}
+      const candles=structuredClone(s.candles),data=s.socket.chartReliability.snapshot().evidence.data;
+      now+=5000;const malformed=packet();Object.assign(malformed.data.K,invalid);s.socket.message(malformed);await drain();
+      assert.deepEqual(s.candles,candles);assert.deepEqual(s.socket.chartReliability.snapshot().evidence.data,data);
+      assert.notEqual(s.socket.chartReliability.snapshot().state,'LIVE');assert.equal(s.errors.length,1);
+      if(!hadData)assert.equal(s.states.includes('LIVE'),false);
+    }finally{s.socket.close();}
+  }
 });
 test('BingX lowercase and structured heartbeat never become candles or verify LIVE',async()=>{
   const s=stream();try{for(const message of ['ping',{ping:1700000000000}])s.socket.message(message);await drain();assert.deepEqual(s.socket.sent.slice(1),['Pong','Pong']);assert.equal(s.candles.length,0);assert.equal(s.states.includes('LIVE'),false);}finally{s.socket.close();}
 });
 test('BingX first valid exact data verifies LIVE, replaces same candle and ignores stale/wrong topics',async()=>{
-  const s=stream();try{s.socket.message({...packet(),dataType:'BTCUSDT@kline_1min'});s.socket.message(packet());s.socket.message(packet());s.socket.message(packet(1700000060000));s.socket.message(packet());await drain();assert.deepEqual(s.candles.map(c=>c.time),[1700000000,1700000000,1700000060]);assert.equal(s.states.filter(x=>x==='LIVE').length,1);assert.equal(s.candles[0].close,11);}finally{s.socket.close();}
+  const s=stream();try{s.socket.message({id:s.id,code:0});s.socket.message({...packet(),dataType:'BTCUSDT@kline_1min'});s.socket.message(packet());s.socket.message(packet());s.socket.message(packet(1700000060000));s.socket.message(packet());await drain();assert.deepEqual(s.candles.map(c=>c.time),[1700000000,1700000000,1700000060]);assert.equal(s.states.filter(x=>x==='LIVE').length,1);assert.equal(s.candles[0].close,11);}finally{s.socket.close();}
 });
 test('BingX reconnect has fresh subscription/ack state and rejects pending decode after close',async()=>{
   let resolve;const s=stream({decodeFrame:()=>new Promise(r=>{resolve=r;})});s.socket.message(packet());await drain();s.socket.close();resolve(JSON.stringify(packet()));await drain();assert.equal(s.candles.length,0);assert.equal(s.states.includes('LIVE'),false);
@@ -83,7 +95,7 @@ test('BingX UI shares watchlist table/tile identity and filter, keeps shared Ale
   assert.match(app,/entries\.map\(watchTileMarkup\)/);assert.match(app,/entries\.map\(watchRowMarkup\)/);assert.match(app,/selectMarketId\(chartAction\.dataset\.watchChart\)/);assert.match(app,/token===generation&&activeSocket===socket/);
   assert.equal(core.SUPPORTED_EXCHANGES.includes('bingx'),true);assert.equal(core.createAlert({exchange:'bingx',symbol:'BTC-USDT',marketType:'spot',type:'price',targetPrice:10}),null); // malformed definitions remain rejected
   assert.match(html.match(/id="radar-exchange-filter"[\s\S]*?<\/select>/)[0],/bingx/);
-  assert.equal(bingxWsInterval['5m'],'5min');assert.equal(bingxWsInterval['15m'],'15min');assert.equal(bingxWsInterval['1M'],'1M');
+  assert.equal(bingxWsInterval['5m'],'5min');assert.equal(bingxWsInterval['15m'],'15min');assert.equal(bingxWsInterval['1M'],'1mon');
 });
 test('BingX narrow history proxy validates inputs and forwards only the exact public v2 request',async()=>{
   const {createBingxPublicProxy}=require('../server/http-server'),urls=[],proxy=createBingxPublicProxy({fetchImpl:async url=>{urls.push(url);return response([row()]);}});
@@ -98,7 +110,7 @@ test('Chart existing reconnect wrapper resubscribes current interval and rejects
   const adapter={requiresSubscriptionAck:true,socket:(m,t,h)=>{const socket={readyState:1,close(){this.readyState=3;h.close();}};sockets.push({m,t,h,socket});return socket;}};
   const scope={exchangeAdapters:{bingx:adapter},marketSockets:new Set(),updateSocketDiagnostics(){},document:{getElementById:()=>retry},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},WebSocket:{CLOSING:2}};
   vm.createContext(scope);vm.runInContext(source+';generation=1;this.start=openLive;this.stop=stopMarket;this.next=()=>generation++;',scope);
-  scope.start(context);sockets[0].h.open();assert.equal(states.at(-1),'SUBSCRIBING');sockets[0].h.status('LIVE');assert.equal(retry.hidden,true);
+  scope.start(context);sockets[0].h.open();assert.notEqual(states.at(-1),'LIVE');sockets[0].h.status('LIVE');assert.equal(retry.hidden,true);
   sockets[0].h.close();assert.equal(states.at(-1),'RECONNECTING');timers[0]();assert.equal(sockets.length,2);assert.equal(sockets[1].m.symbol,'BTC-USDT');assert.equal(sockets[1].t,'5m');
   sockets[0].h.candle({old:true});sockets[0].h.status('LIVE');assert.equal(candles.length,0);sockets[1].h.candle({current:true});assert.equal(candles.length,1);
   scope.next();sockets[1].h.candle({stale:true});sockets[1].h.error();assert.equal(candles.length,1);scope.stop();assert.equal(sockets[1].socket.readyState,3);
