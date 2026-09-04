@@ -1,6 +1,10 @@
-(function(global){
+(function(global,factory){
+  const api=factory(typeof module==='object'&&module.exports?require('../exchanges/exchange-adapter-v2.js'):global.ZychExchangeAdapterV2);
+  if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychWorkspace=api;
+})(typeof window!=='undefined'?window:globalThis,function(adapters){
   'use strict';
-  const exchanges=Object.freeze(['binance','bybit','okx','bingx','coinbase','kraken']);
+  if(!adapters)throw new Error('Adapter v2 registry is required');
+  const exchanges=adapters.exchangeIds;
   const validExchange=value=>exchanges.includes(value)?value:'binance';
   const marketForAsset=(markets,asset,exchange,quoteAsset='USDT')=>{const same=(markets||[]).filter(market=>market.enabled&&market.asset===asset&&market.exchange===exchange);return same.find(market=>market.quoteAsset===quoteAsset)||(exchange==='kraken'?null:same.find(market=>market.quoteAsset==='USDT')||same[0])||null};
   const unavailableMarket=(asset,exchange,quoteAsset='USDT',requestedMarketId='')=>({id:`${exchange}:unavailable:${asset}:${quoteAsset}`,marketId:`${exchange}:unavailable:${asset}:${quoteAsset}`,requestedMarketId,asset,baseAsset:asset,quoteAsset,exchange,symbol:'',enabled:false,unavailable:true,status:'unavailable'});
@@ -22,6 +26,5 @@
     if(saved.marketId)return (markets||[]).find(m=>m.enabled&&m.id===saved.marketId&&m.exchange===saved.exchange&&m.id===`${m.exchange}:${m.marketType||'spot'}:${m.symbol}`)||null;
     return (markets||[]).find(m=>m.enabled&&m.exchange===saved.exchange&&(m.baseAsset||m.asset)===saved.asset&&m.quoteAsset===saved.quoteAsset)||null;
   }
-  const api={exchanges,validExchange,marketForAsset,unavailableMarket,equivalentMarket,preference,manualSwitchMarket,restoreMarket};
-  if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychWorkspace=api;
-})(typeof window!=='undefined'?window:globalThis);
+  return{exchanges,validExchange,marketForAsset,unavailableMarket,equivalentMarket,preference,manualSwitchMarket,restoreMarket};
+});

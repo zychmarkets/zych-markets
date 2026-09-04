@@ -12,11 +12,11 @@
   const supported=details=>fact('SUPPORTED',null,details);
   const limited=(reasonCode,details)=>fact('LIMITED',reasonCode,details);
   const unsupported=(reasonCode,details)=>fact('UNSUPPORTED',reasonCode,details);
-  const nativePattern=/^[A-Z0-9-]{1,30}$/;
+  const nativePatterns=Object.freeze({binance:/^[A-Z0-9]{1,30}$/,bybit:/^[A-Z0-9]{1,30}$/,okx:/^[A-Z0-9]{1,20}-[A-Z0-9]{1,20}$/,bingx:/^[A-Z0-9]{1,20}-[A-Z0-9]{1,20}$/,coinbase:/^[A-Z0-9]{1,20}-[A-Z0-9]{1,20}$/,kraken:/^[A-Z0-9-]{1,30}$/});
   const identity=exchange=>deepFreeze({
     nativeSymbolAuthoritative:true,
-    canonicalId(nativeSymbol,marketType='spot'){if(marketType!=='spot'||!nativePattern.test(nativeSymbol))return null;return `${exchange}:${marketType}:${nativeSymbol}`;},
-    parse(marketId){const prefix=`${exchange}:spot:`;if(typeof marketId!=='string'||!marketId.startsWith(prefix))return null;const nativeSymbol=marketId.slice(prefix.length);return nativePattern.test(nativeSymbol)?{exchange,marketType:'spot',nativeSymbol,marketId}:null;},
+    canonicalId(nativeSymbol,marketType='spot'){if(marketType!=='spot'||!nativePatterns[exchange].test(nativeSymbol))return null;return `${exchange}:${marketType}:${nativeSymbol}`;},
+    parse(marketId){const prefix=`${exchange}:spot:`;if(typeof marketId!=='string'||!marketId.startsWith(prefix))return null;const nativeSymbol=marketId.slice(prefix.length);return nativePatterns[exchange].test(nativeSymbol)?{exchange,marketType:'spot',nativeSymbol,marketId}:null;},
     resolve(value,catalog=[]){const nativeSymbol=String(value||'').toUpperCase(),direct=catalog.find(row=>row.nativeSymbol===nativeSymbol||row.symbol===nativeSymbol),alias=direct||catalog.find(row=>(row.searchAliases||[]).some(item=>String(item).toUpperCase()===nativeSymbol));const resolved=alias?.nativeSymbol||alias?.symbol||nativeSymbol;return this.canonicalId(resolved);}
   });
   const intervalFacts=(mappings,unsupportedFrames=[])=>deepFreeze(Object.fromEntries(INTERVALS.map(frame=>[frame,unsupportedFrames.includes(frame)?{capability:unsupported(REASONS.INTERVAL_UNSUPPORTED),protocols:{}}:{capability:supported(),protocols:deepFreeze({...mappings[frame]})}])));
@@ -52,7 +52,9 @@
     }
     return true;
   }
-  validateRegistry(registry);const byId=deepFreeze(Object.fromEntries(registry.map(row=>[row.id,row])));deepFreeze(registry);
+  validateRegistry(registry);const byId=deepFreeze(Object.fromEntries(registry.map(row=>[row.id,row]))),exchangeIds=deepFreeze(registry.map(row=>row.id));deepFreeze(registry);
   const get=(exchange,marketType='spot')=>byId[exchange]?.marketTypes?.[marketType]||null;
-  return deepFreeze({STATES,ACCESS_MODES,INTERVALS,REASONS,supported,limited,unsupported,validateRegistry,registry,byId,get});
+  const canonicalId=(exchange,marketType,nativeSymbol)=>get(exchange,marketType)?.identity.canonicalId(nativeSymbol,marketType)||null;
+  const parseCanonicalId=marketId=>{if(typeof marketId!=='string')return null;const exchange=marketId.split(':',1)[0];return get(exchange,'spot')?.identity.parse(marketId)||null;};
+  return deepFreeze({STATES,ACCESS_MODES,INTERVALS,REASONS,supported,limited,unsupported,validateRegistry,registry,byId,exchangeIds,get,canonicalId,parseCanonicalId});
 });
