@@ -101,7 +101,7 @@ test('Coinbase invalid Chart requests fail without network calls; Alerts admit C
 });
 test('Coinbase UI keeps one global selector and visibly guards metrics and Chart boundaries',()=>{
   const html=fs.readFileSync(require.resolve('../index.html'),'utf8'),app=fs.readFileSync(require.resolve('../app.js'),'utf8');
-  assert.equal((html.match(/id="active-exchange-selector"/g)||[]).length,1);assert.equal((html.match(/data-active-exchange-option=/g)||[]).length,6);
-  assert.match(html,/data-active-exchange-option="coinbase">Coinbase/);assert.doesNotMatch(html.match(/id="radar-exchange-filter"[\s\S]*?<\/select>/)[0],/coinbase/);
+  assert.equal((html.match(/id="active-exchange-selector"/g)||[]).length,1);assert.equal((html.match(/data-active-exchange-option=/g)||[]).length,0);
+  assert.match(app,/ZychExchangeAdapterV2\.manualExchangeIds\.map/);assert.match(app,/adapter\.label/);assert.doesNotMatch(html.match(/id="radar-exchange-filter"[\s\S]*?<\/select>/)[0],/coinbase/);
   assert.match(app,/Exact 24h quote volume unavailable/);assert.match(app,/Snapshot received/);assert.match(app,/Partial metrics/);assert.match(app,/24h High/);assert.match(app,/24h Low/);assert.match(app,/capabilities\?\.chart===false/);
 });

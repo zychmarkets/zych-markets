@@ -26,21 +26,21 @@
   const coinbase={'1m':'ONE_MINUTE','5m':'FIVE_MINUTE','15m':'FIFTEEN_MINUTE','1h':'ONE_HOUR','4h':'FOUR_HOUR','1d':'ONE_DAY','1w':'ONE_WEEK','1M':'ONE_MONTH'};
   const kraken={'1m':1,'5m':5,'15m':15,'1h':60,'4h':240,'1d':1440,'1w':10080};
   const allAlerts=deepFreeze({price:supported(),movement:supported(),volume:supported()});
-  function capabilities({intervals,markets=supported(),history=supported(),historyDepth=supported(),alerts=allAlerts,radar=supported(),exact=supported(),accessMode}){return deepFreeze({markets,search:supported(),watchlist:supported(),chart:{history,live:supported(),intervals,historyDepth},alerts,radar,metrics:{exactQuoteVolume24h:exact},access:{browserRest:{mode:accessMode,reasonCode:accessMode==='SAME_ORIGIN_PROXY'?REASONS.SAME_ORIGIN_PROXY_REQUIRED:null},serverTransport:supported()}});}
+  function capabilities({intervals,markets=supported(),history=supported(),historyDepth=supported(),alerts=allAlerts,radar=supported(),exact=supported(),accessMode}){return deepFreeze({manualExchangeSwitch:supported(),markets,search:supported(),watchlist:supported(),chart:{history,live:supported(),intervals,historyDepth},alerts,radar,metrics:{exactQuoteVolume24h:exact},access:{browserRest:{mode:accessMode,reasonCode:accessMode==='SAME_ORIGIN_PROXY'?REASONS.SAME_ORIGIN_PROXY_REQUIRED:null},serverTransport:supported()}});}
   const ports=(browser,server,radar)=>deepFreeze({browser:{adapter:browser},server:{alertTransport:server,radar}});
   const definitions=[
-    ['binance','exchange.binance','DIRECT',intervalFacts(mapped(commonMappings.binance))],
-    ['bybit','exchange.bybit','DIRECT',intervalFacts(mapped(commonMappings.bybit))],
-    ['okx','exchange.okx','DIRECT',intervalFacts(mapped(commonMappings.okx))],
-    ['bingx','exchange.bingx','SAME_ORIGIN_PROXY',intervalFacts(Object.fromEntries(INTERVALS.map(frame=>[frame,{rest:bingxRest[frame],live:bingxWs[frame],spotWs:bingxWs[frame]}])))],
-    ['coinbase','exchange.coinbase','SAME_ORIGIN_PROXY',intervalFacts(mapped(coinbase),['30m'])],
-    ['kraken','exchange.kraken','DIRECT',intervalFacts(mapped(kraken),['30m','1M'])]
+    ['binance','Binance','exchange.binance','DIRECT',intervalFacts(mapped(commonMappings.binance))],
+    ['bybit','Bybit','exchange.bybit','DIRECT',intervalFacts(mapped(commonMappings.bybit))],
+    ['okx','OKX','exchange.okx','DIRECT',intervalFacts(mapped(commonMappings.okx))],
+    ['bingx','BingX','exchange.bingx','SAME_ORIGIN_PROXY',intervalFacts(Object.fromEntries(INTERVALS.map(frame=>[frame,{rest:bingxRest[frame],live:bingxWs[frame],spotWs:bingxWs[frame]}])))],
+    ['coinbase','Coinbase','exchange.coinbase','SAME_ORIGIN_PROXY',intervalFacts(mapped(coinbase),['30m'])],
+    ['kraken','Kraken','exchange.kraken','DIRECT',intervalFacts(mapped(kraken),['30m','1M'])]
   ];
   const portNames={binance:['BinanceBrowserAdapter','server/transports/binance-market-transport','server/radar'],bybit:['BybitBrowserAdapter','server/transports/bybit-market-transport','server/radar'],okx:['OkxBrowserAdapter','server/transports/okx-market-transport','server/radar'],bingx:['BingxBrowserAdapter','server/transports/bingx-market-transport','server/radar'],coinbase:['CoinbaseBrowserAdapter','server/transports/coinbase-market-transport',null],kraken:['KrakenBrowserAdapter','server/transports/kraken-market-transport',null]};
-  const registry=definitions.map(([id,labelKey,mode,intervals])=>{
+  const registry=definitions.map(([id,label,labelKey,mode,intervals])=>{
     const coinbaseRow=id==='coinbase',krakenRow=id==='kraken',alerts=coinbaseRow?{price:supported(),movement:unsupported(REASONS.ALERT_TYPE_UNSUPPORTED),volume:unsupported(REASONS.ALERT_TYPE_UNSUPPORTED)}:krakenRow?{price:supported(),movement:supported(),volume:unsupported(REASONS.ALERT_TYPE_UNSUPPORTED)}:allAlerts;
     const spot=deepFreeze({identity:identity(id),capabilities:capabilities({intervals,markets:coinbaseRow||krakenRow?limited(REASONS.EXACT_QUOTE_VOLUME_UNAVAILABLE):supported(),history:krakenRow?limited(REASONS.HISTORY_WINDOW_LIMITED,{backwardPagination:false}):supported(),historyDepth:krakenRow?limited(REASONS.HISTORY_WINDOW_LIMITED,{backwardPagination:false}):supported(),alerts:deepFreeze(alerts),radar:coinbaseRow||krakenRow?unsupported(REASONS.RADAR_LIQUIDITY_REQUIREMENT_UNMET):supported(),exact:coinbaseRow||krakenRow?unsupported(REASONS.EXACT_QUOTE_VOLUME_UNAVAILABLE):supported(),accessMode:mode}),ports:ports(...portNames[id])});
-    return deepFreeze({id,labelKey,marketTypes:deepFreeze({spot})});
+    return deepFreeze({id,label,labelKey,marketTypes:deepFreeze({spot})});
   });
   const RUNTIME_KEYS=new Set(['offline','stale','reconnecting','heartbeatAge','lastDataAge','acknowledgement','generation','currentError']);
   function validateRegistry(rows){
@@ -52,9 +52,10 @@
     }
     return true;
   }
-  validateRegistry(registry);const byId=deepFreeze(Object.fromEntries(registry.map(row=>[row.id,row]))),exchangeIds=deepFreeze(registry.map(row=>row.id));deepFreeze(registry);
+  validateRegistry(registry);const byId=deepFreeze(Object.fromEntries(registry.map(row=>[row.id,row]))),exchangeIds=deepFreeze(registry.map(row=>row.id)),manualExchangeIds=deepFreeze(registry.filter(row=>row.marketTypes.spot.capabilities.manualExchangeSwitch.state==='SUPPORTED').map(row=>row.id));deepFreeze(registry);
+  const resolveExchange=value=>typeof value==='string'&&manualExchangeIds.includes(value)?byId[value]:null;
   const get=(exchange,marketType='spot')=>byId[exchange]?.marketTypes?.[marketType]||null;
   const canonicalId=(exchange,marketType,nativeSymbol)=>get(exchange,marketType)?.identity.canonicalId(nativeSymbol,marketType)||null;
   const parseCanonicalId=marketId=>{if(typeof marketId!=='string')return null;const exchange=marketId.split(':',1)[0];return get(exchange,'spot')?.identity.parse(marketId)||null;};
-  return deepFreeze({STATES,ACCESS_MODES,INTERVALS,REASONS,supported,limited,unsupported,validateRegistry,registry,byId,exchangeIds,get,canonicalId,parseCanonicalId});
+  return deepFreeze({STATES,ACCESS_MODES,INTERVALS,REASONS,supported,limited,unsupported,validateRegistry,registry,byId,exchangeIds,manualExchangeIds,resolveExchange,get,canonicalId,parseCanonicalId});
 });

@@ -15,7 +15,7 @@
     DOT:{name:'Polkadot',icon:'D',className:'generic'},LTC:{name:'Litecoin',icon:'Ł',className:'generic'},BCH:{name:'Bitcoin Cash',icon:'B',className:'generic'},TON:{name:'Toncoin',icon:'T',className:'generic'},SHIB:{name:'Shiba Inu',icon:'S',className:'generic'},UNI:{name:'Uniswap',icon:'U',className:'generic'},NEAR:{name:'NEAR Protocol',icon:'N',className:'generic'},APT:{name:'Aptos',icon:'A',className:'generic'}
   };
   let MARKETS = DEFAULT_WATCHLIST.flatMap(asset => ['binance','bybit'].map(exchange => ZychInstruments.normalize({exchange,marketType:'spot',symbol:`${asset}USDT`,baseAsset:asset,quoteAsset:'USDT',enabled:true,status:'TRADING'}))).concat(DEFAULT_WATCHLIST.map(asset=>ZychInstruments.normalize({exchange:'okx',marketType:'spot',symbol:`${asset}-USDT`,baseAsset:asset,quoteAsset:'USDT',enabled:true,status:'live'})));
-  const EXCHANGES={binance:{label:'Binance'},bybit:{label:'Bybit'},okx:{label:'OKX'},bingx:{label:'BingX'},coinbase:{label:'Coinbase'},kraken:{label:'Kraken'}};
+  const EXCHANGES=ZychExchangeAdapterV2.byId;
   const TIMEFRAMES=['1m','5m','15m','30m','1h','4h','1d','1w','1M'];
   const THEME_PREFERENCES=new Set(['dark','light','system']),themeSubscribers=new Set();
   const themeState={preference:'dark',resolved:'dark'};
@@ -152,6 +152,7 @@
   const updatePulse=(asset,snapshot)=>{const card=pulseCards.find(item=>item.dataset.pulseAsset===asset);if(card&&snapshot){card.querySelector('strong').textContent=`$${formatPrice(snapshot.lastPrice)}`;const change=card.querySelector('.pulse-copy>span');change.textContent=formatPercent(snapshot.changePercent);applyDirection(change,snapshot.changePercent)}const radar=radarCards.find(item=>item.dataset.radarAsset===asset);if(radar&&snapshot){radar.querySelector('strong').textContent=`$${formatPrice(snapshot.lastPrice)}`;const change=radar.querySelector('em');change.textContent=formatPercent(snapshot.changePercent);applyDirection(change,snapshot.changePercent)}};
 
   const workspaceButton=document.getElementById('active-exchange-selector'),workspaceMenu=document.getElementById('active-exchange-menu');
+  workspaceMenu.innerHTML=ZychExchangeAdapterV2.manualExchangeIds.map(exchange=>{const adapter=ZychExchangeAdapterV2.resolveExchange(exchange);return `<button class="dropdown-item" type="button" data-active-exchange-option="${escapeHtml(adapter.id)}">${escapeHtml(adapter.label)}</button>`}).join('');
   function renderActiveExchange(){workspaceMenu.querySelectorAll('[data-active-exchange-option]').forEach(button=>button.classList.toggle('active',button.dataset.activeExchangeOption===state.activeExchange));const label=document.getElementById('active-exchange-button-label');if(label)label.textContent=EXCHANGES[state.activeExchange]?.label||state.activeExchange;document.documentElement.dataset.activeExchange=state.activeExchange}
   function resetWorkspaceSurfaces(){renderWatchlist();pulseCards.forEach(card=>{const market=marketForAsset(card.dataset.pulseAsset),snapshot=market&&state.marketSnapshots[market.id],price=card.querySelector('strong'),change=card.querySelector('.pulse-copy>span');price.textContent=snapshot?`$${formatPrice(snapshot.lastPrice)}`:'—';change.textContent=snapshot?formatPercent(snapshot.changePercent):'—';applyDirection(change,snapshot?.changePercent)});rebuildCatalogMetrics();renderMarketsDashboard()}
   const marketsUi={query:'',quote:'all',sort:'volume-desc',limit:25};
@@ -172,8 +173,8 @@ const capabilityNote=document.getElementById('markets-capabilities');capabilityN
   }
   document.getElementById('markets-search')?.addEventListener('input',event=>{marketsUi.query=event.target.value.trim();marketsUi.limit=25;renderMarketsDashboard()});document.getElementById('markets-quote-filter')?.addEventListener('change',event=>{marketsUi.quote=event.target.value;marketsUi.limit=25;renderMarketsDashboard()});document.getElementById('markets-sort')?.addEventListener('change',event=>{marketsUi.sort=event.target.value;marketsUi.limit=25;renderMarketsDashboard()});marketsElements.loadMore?.addEventListener('click',()=>{marketsUi.limit+=25;renderMarketsDashboard()});document.getElementById('markets')?.addEventListener('click',event=>{const watch=event.target.closest('[data-markets-watch]');if(watch){event.stopPropagation();toggleWatchlist(MARKETS.find(item=>item.id===watch.dataset.marketsWatch));return}const open=event.target.closest('[data-markets-open]');if(open)selectMarketId(open.dataset.marketsOpen)});
   async function switchActiveExchange(exchange){
-    if(!ZychWorkspace.exchanges.includes(exchange))return;
-    const next=exchange;workspaceMenu.hidden=true;workspaceButton.setAttribute('aria-expanded','false');if(next===state.activeExchange&&!state.selectedMarket.unavailable)return;
+    const next=ZychWorkspace.resolveExchange(exchange);if(!next)return;
+    workspaceMenu.hidden=true;workspaceButton.setAttribute('aria-expanded','false');if(next===state.activeExchange&&!state.selectedMarket.unavailable)return;
     const current=state.selectedMarket,intent=++navigationIntent;manualSwitchPending=true;state.activeExchange=next;state.marketContext=null;state.selectedMarket=ZychWorkspace.unavailableMarket(current.asset,next,current.quoteAsset);renderActiveExchange();resetWorkspaceSurfaces();loadMarket();
     if(universeStatus==='loading')await loadUniverse();
     if(intent!==navigationIntent)return;
