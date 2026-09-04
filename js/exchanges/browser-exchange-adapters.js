@@ -114,7 +114,7 @@
     }
   }
   class BingxBrowserAdapter {
-    constructor({ restBase = 'https://open-api.bingx.com', historyBase='https://open-api.bingx.com', wsBase='wss://open-api-ws.bingx.com/market', catalogPath='/openApi/spot/v1/common/symbols', tickerPath='/openApi/spot/v1/ticker/24hr', fetchImpl=global.fetch, socketFactory=url=>new global.WebSocket(url), decodeFrame=decodeBingxFrame, ackTimeoutMs=15000, heartbeatTimeoutMs=45000, now=Date.now } = {}) { this.id='bingx';this.requiresSubscriptionAck=true;Object.assign(this,{restBase,historyBase,wsBase,catalogPath,tickerPath,fetchImpl,socketFactory,decodeFrame,ackTimeoutMs,heartbeatTimeoutMs,now}); }
+    constructor({ restBase = 'https://open-api.bingx.com', historyBase='https://open-api.bingx.com', wsBase='wss://open-api-ws.bingx.com/market', catalogPath='/openApi/spot/v1/common/symbols', tickerPath='/openApi/spot/v1/ticker/24hr', fetchImpl=global.fetch, socketFactory=url=>new global.WebSocket(url), decodeFrame=decodeBingxFrame, ackTimeoutMs=15000, heartbeatTimeoutMs=45000, historyTimeoutMs=10000, now=Date.now } = {}) { this.id='bingx';this.requiresSubscriptionAck=true;this.initialPageBudget=1;Object.assign(this,{restBase,historyBase,wsBase,catalogPath,tickerPath,fetchImpl,socketFactory,decodeFrame,ackTimeoutMs,heartbeatTimeoutMs,historyTimeoutMs,now}); }
     unwrap(value,key) { if(Number(value?.code)!==0)throw new Error(`BingX API ${value?.code??'invalid'}`);const rows=key?value?.data?.[key]:value?.data;if(!Array.isArray(rows))throw new Error('BingX API malformed response');return rows; }
     async request(path,signal) { const url=`${this.restBase}${path}`;try{return await timeoutFetch(url,signal,10000,this.fetchImpl)}catch(error){global.console?.warn?.('bingx_browser_request_failed',JSON.stringify({url,method:'GET',name:error?.name||'Error',message:error?.message||String(error)}));throw error} }
     async discover(signal) { const rows=this.unwrap(await this.request(this.catalogPath,signal),'symbols'),markets=rows.filter(row=>Number(row.status)===1&&row.apiStateBuy===true&&row.apiStateSell===true).map(row=>{const pair=bingxPair(row);return pair?market(this.id,pair.symbol,pair.baseAsset,pair.quoteAsset,row.status):null}).filter(Boolean);return [...new Map(markets.map(item=>[item.id,item])).values()]; }
@@ -129,7 +129,7 @@
       if(Number.isFinite(endTime))params.set('endTime',String(Math.floor(endTime)));
       if(Number.isFinite(startTime))params.set('startTime',String(Math.floor(startTime)));
       const path=this.historyBase.startsWith('/')?'/candles':'/openApi/spot/v2/market/kline';
-      const rows=this.unwrap(await timeoutFetch(`${this.historyBase}${path}?${params}`,signal,10000,this.fetchImpl));
+      const rows=this.unwrap(await timeoutFetch(`${this.historyBase}${path}?${params}`,signal,this.historyTimeoutMs,this.fetchImpl));
       const normalized=rows.map(bingxCandle);
       if(normalized.some(row=>!row))throw new Error('BingX malformed candle');
       return [...new Map(normalized.map(row=>[row.time,row])).values()].sort((a,b)=>a.time-b.time);

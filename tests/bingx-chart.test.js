@@ -51,6 +51,24 @@ test('BingX generic history pagination uses oldest-1; partial, empty, dedup and 
   const controller=new AbortController(),cancelled=new ChartHistoryService({adapters:{bingx:{candles:async()=>{controller.abort();return [bingxCandle(row())];}}}});await assert.rejects(cancelled.initial(market,'1m',controller.signal),{name:'AbortError'});assert.equal(cancelled.entry(market,'1m').candles.length,0);
   await assert.rejects(new ChartHistoryService().request(market,'1m'),/adapter unavailable/);
 });
+test('BingX initial chart history is one responsive native page and retains lazy backward pagination',async()=>{
+  const {ChartHistoryService}=history(),urls=[];
+  const adapter=new BingxBrowserAdapter({fetchImpl:async url=>{urls.push(new URL(url));return response(Array.from({length:1000},(_,i)=>row(1700000000000+i*3600000)));}});
+  const result=await new ChartHistoryService({adapters:{bingx:adapter}}).initial(market,'1h');
+  assert.equal(adapter.initialPageBudget,1);assert.equal(urls.length,1);assert.equal(urls[0].searchParams.get('symbol'),'BTC-USDT');assert.equal(urls[0].searchParams.get('interval'),'1h');assert.equal(urls[0].searchParams.get('limit'),'1000');
+  assert.equal(result.data.length,1000);assert.equal(result.pages,1);assert.equal(result.endReached,false);
+});
+test('BingX successful initial history reaches chart delivery and live startup with exact identity',async()=>{
+  const source=fs.readFileSync(require.resolve('../app.js'),'utf8'),start=source.indexOf('  async function selectMarketData('),end=source.indexOf('\n  const chartContainer=',start),calls=[],nodes={'chart':{dataset:{}},'chart-data-age':{textContent:''}};
+  const scope={market,AbortController,document:{getElementById:id=>nodes[id]},historyService:{initial:async(value,timeframe,signal)=>{calls.push(['history',value.id,value.symbol,timeframe,signal.aborted]);return{data:[bingxCandle(row())],cached:false,cacheStoredAt:1};}},stopMarket(){},openLive:value=>calls.push(['live',value.market.id,value.market.symbol,value.timeframe])};
+  vm.createContext(scope);vm.runInContext(`let generation=0,activeController=null;${source.slice(start,end)};this.selectMarketData=selectMarketData`,scope);
+  const statuses=[],candles=[];await scope.selectMarketData(market,'1h',{onStatus:value=>statuses.push(value),onCandles:value=>candles.push(value),onCandle(){},onError:error=>assert.fail(error.message)});
+  assert.deepEqual(calls.map(value=>value.slice(0,4)),[['history','bingx:spot:BTC-USDT','BTC-USDT','1h'],['live','bingx:spot:BTC-USDT','BTC-USDT','1h']]);assert.deepEqual(statuses,['CONNECTING']);assert.equal(candles[0].length,1);
+});
+test('BingX terminal history failure is timeout-bounded without retry storms',async()=>{
+  let calls=0;const adapter=new BingxBrowserAdapter({historyTimeoutMs:5,fetchImpl:async(_url,{signal})=>{calls++;return new Promise((resolve,reject)=>{signal.addEventListener('abort',()=>reject(signal.reason),{once:true});});}});
+  await assert.rejects(adapter.candles(market,'1h'),error=>error.name==='TimeoutError');assert.equal(calls,1);
+});
 test('BingX live cache replaces same candle, rolls forward and ignores older timestamps',()=>{
   const service=new (history().ChartHistoryService)(),first=bingxCandle(row());service.updateLive(market,'1m',first);service.updateLive(market,'1m',{...first,close:12});service.updateLive(market,'1m',{...first,time:first.time+60});service.updateLive(market,'1m',{...first,time:first.time-60});assert.equal(service.entry(market,'1m').candles.length,2);assert.equal(service.entry(market,'1m').candles[0].close,12);
 });
