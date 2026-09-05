@@ -827,7 +827,9 @@ body:has(#markets:not([hidden])){background:#020910}
 #markets .markets-future-strip article>i{background:none!important;box-shadow:none;width:27px;height:27px}
 #markets .markets-future-strip svg{display:block;width:27px;height:27px}
 
-/* Numeric cells retain their full value and currency on narrow panels. */
+/* Pair labels carry the quote currency; cells expose it in accessible tooltips. */
 #markets .markets-mini-list{overflow-x:auto}
-#markets .markets-mini-list>button{grid-template-columns:16px minmax(76px,1fr) minmax(90px,max-content) 55px minmax(77px,max-content);min-width:354px;gap:4px;padding-inline:7px}
+#markets .markets-mini-list>button{grid-template-columns:14px minmax(66px,1fr) minmax(72px,.95fr) minmax(48px,.7fr) minmax(49px,.75fr);min-width:279px;gap:4px;padding-inline:7px}
 #markets .markets-mini-list :is(em,strong,small){white-space:nowrap;font-variant-numeric:tabular-nums}
+
+#markets .context-card.markets-gauge-slot>[data-context-detail]{margin-top:6px}
