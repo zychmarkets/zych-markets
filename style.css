@@ -724,3 +724,14 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 #active-exchange-button-label{display:inline-block;width:8ch;text-align:left;white-space:nowrap}
 
 .markets-heatmap>.markets-empty{grid-column:1/-1;min-height:160px}
+
+/* Attribution stays in document flow, outside the chart and its controls. */
+.chart-attribution{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;padding:8px 14px;border-top:1px solid var(--border-soft);color:var(--text-secondary);font-size:11px;line-height:1.5}
+.chart-attribution a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.chart-attribution a:hover{color:var(--text-primary)}
+.chart-attribution a:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.chart-attribution small{font-size:10px;overflow-wrap:anywhere}
+
+.watchlist-load-status{display:block;color:var(--text-secondary);font-size:10px;line-height:1.4;white-space:normal}
+
+#markets-coverage{white-space:normal}.markets-metric-coverage,#markets-gainers-coverage,#markets-losers-coverage{display:block;color:var(--text-secondary);font-size:10px;line-height:1.4}

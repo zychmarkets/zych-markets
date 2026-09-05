@@ -59,4 +59,18 @@ test('Kraken cached reads expire without a refresh, including while another exch
 test('Kraken disposal closes an in-flight collector and leaves no active connection',async()=>{const{a,sockets}=adapter({silent:true});await a.discover();const pending=a.collect(a.mapping);assert.equal(a.diagnostics().connections,1);a.dispose();await pending;assert.equal(a.diagnostics().connections,0);assert.ok(sockets[0].closed);});
 test('Kraken REST failure does not erase successful verified WS fields',async()=>{const{a}=adapter();await a.discover();a.fetchImpl=async()=>{throw new Error('REST unavailable')};const rows=await a.allSnapshots();assert.ok(rows.every(row=>row.price===101&&row.change24h===-2.42&&row.quoteVolume24h===null));assert.equal(a.diagnostics().lastRestError,'REST unavailable');a.dispose();});
 test('Kraken public HTTP error rejects discovery and can be retried',async()=>{const{a}=adapter();const original=a.fetchImpl;a.fetchImpl=async()=>({ok:false,status:429});await assert.rejects(a.discover(),/429/);a.fetchImpl=original;assert.ok((await a.discover()).length);a.dispose();});
+
+test('Kraken publishes readable cache progress before the full WS collection finishes',async()=>{
+  const {a}=adapter(),seen=[];let finished=false;
+  const unsubscribe=a.subscribeSnapshots(()=>seen.push({finished,count:a.stats.verifiedSnapshots,row:a.cachedSnapshot('XXBTZUSD')}));
+  await a.allSnapshots();finished=true;
+  assert.ok(seen.some(event=>!event.finished&&event.row?.price!==null&&event.row?.price!==undefined));
+  assert.ok(seen.some(event=>!event.finished&&event.count>0&&event.count<a.mapping.byNative.size&&event.row.change24h===-2.42));
+  const final=a.cachedSnapshot('XXBTZUSD');assert.equal(final.change24h,-2.42);assert.equal(final.quoteVolume24h,null);
+  unsubscribe();const count=seen.length;a.notifySnapshots();assert.equal(seen.length,count);a.dispose();assert.equal(a.snapshotListeners.size,0);
+});
+test('Kraken notifies REST progress and preserves those fields after a WS timeout',async()=>{
+  const {a}=adapter({silent:true}),seen=[];a.subscribeSnapshots(()=>seen.push({row:a.cachedSnapshot('XXBTZUSD'),error:a.stats.lastError}));
+  await a.allSnapshots();assert.ok(seen.some(event=>event.row?.price===100&&!event.error));assert.match(seen.at(-1).error,/timeout/);assert.equal(a.cachedSnapshot('XXBTZUSD').price,100);assert.equal(a.cachedSnapshot('XXBTZUSD').change24h,null);a.dispose();
+});
 test('Kraken Part B enables Chart/Watchlist while Radar remains excluded',async()=>{const{a}=adapter();await assert.rejects(a.candles(),/Unsupported Kraken interval/);assert.throws(()=>a.socket(),/Unsupported Kraken interval/);assert.equal(core.SUPPORTED_EXCHANGES.includes('kraken'),true);assert.equal(core.SUPPORTED_EXCHANGES.length,6);assert.equal(a.capabilities.chart,true);assert.equal(a.capabilities.watchlist,true);assert.equal(a.capabilities.radar,false);const html=fs.readFileSync(require.resolve('../index.html'),'utf8'),app=fs.readFileSync(require.resolve('../app.js'),'utf8');assert.equal((html.match(/data-active-exchange-option=/g)||[]).length,0);assert.match(app,/ZychExchangeAdapterV2\.manualExchangeIds\.map/);assert.equal((html.match(/id="active-exchange-selector"/g)||[]).length,1);assert.doesNotMatch(html.match(/id="radar-exchange-filter"[\s\S]*?<\/select>/)[0],/coinbase|kraken/);assert.match(app,/capabilities\?\.chart===false/);assert.match(app,/Exact quote volume, volume ranking and heatmap sizing are unavailable/);assert.match(app,/item\.change24h===null\?'':/);a.dispose();});

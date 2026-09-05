@@ -6,8 +6,10 @@
   class KrakenBrowserAdapter {
     constructor({fetchImpl=root.fetch,socketFactory=url=>new root.WebSocket(url),now=Date.now,batchSize=64,batchDelayMs=1000,ackTimeoutMs=10000,collectionTimeoutMs=90000,requestSpacingMs=1100,cacheTtlMs=30000,maxAgeMs=180000}={}){
       this.id='kraken';this.chartContract=typeof module==='object'&&module.exports?require('./kraken-chart.js'):root.ZychKrakenChart;this.requiresSubscriptionAck=true;this.reconnectDelay=attempt=>Math.min(60000,5000*2**Math.min(attempt,4));this.capabilities={...contract.capabilities,chart:true,watchlist:true,alerts:true,alertTypes:['price','movement'],intervals:Object.keys(this.chartContract.intervals),historyLimit:this.chartContract.historyLimit};Object.assign(this,{fetchImpl,socketFactory,now,batchSize:Math.max(1,Math.min(64,batchSize)),batchDelayMs,ackTimeoutMs,collectionTimeoutMs,requestSpacingMs,cacheTtlMs,maxAgeMs});
-      this.mapping=null;this.catalogAt=null;this.catalogMetadata=[];this.rest=new Map();this.ws=new Map();this.queue=Promise.resolve();this.nextRequestAt=0;this.controllers=new Set();this.disposed=false;this.lastRefreshAt=null;this.retryAt=0;this.stats={state:'idle',connections:0,requested:0,acknowledged:0,verifiedSnapshots:0,lastHeartbeatAt:null,lastMessageAt:null,lastError:null,rejected:[]};
+      this.snapshotListeners=new Set();this.mapping=null;this.catalogAt=null;this.catalogMetadata=[];this.rest=new Map();this.ws=new Map();this.queue=Promise.resolve();this.nextRequestAt=0;this.controllers=new Set();this.disposed=false;this.lastRefreshAt=null;this.retryAt=0;this.stats={state:'idle',connections:0,requested:0,acknowledged:0,verifiedSnapshots:0,lastHeartbeatAt:null,lastMessageAt:null,lastError:null,rejected:[]};
     }
+    subscribeSnapshots(listener){this.snapshotListeners.add(listener);return()=>this.snapshotListeners.delete(listener);}
+    notifySnapshots(){for(const listener of this.snapshotListeners){try{listener();}catch{}}}
     request(path){
       const run=this.queue.then(async()=>{
         if(this.disposed)throw aborted();const delay=Math.max(0,this.nextRequestAt-this.now());if(delay)await new Promise(resolve=>setTimeout(resolve,delay));if(this.disposed)throw aborted();this.nextRequestAt=this.now()+this.requestSpacingMs;
@@ -35,7 +37,7 @@
       if(this.disposed||this.now()<this.retryAt)return Promise.resolve();
       this.collecting=new Promise(resolve=>{
         let socket,done=false,batch=null,remaining=[],batchTimer,paceTimer,deadline,phase='instrument',requestId=1,instrumentAck=false,instrumentData=null;
-        const finish=error=>{if(done)return;done=true;clearTimeout(batchTimer);clearTimeout(paceTimer);clearTimeout(deadline);this.cancelCollection=null;this.stats.connections=0;this.stats.state=error||this.stats.rejected.length?'partial':'idle';this.stats.lastError=error?.message||null;if(error)this.retryAt=this.now()+30000;try{socket?.close(1000,'ticker collection complete');}catch{}resolve();};
+        const finish=error=>{if(done)return;done=true;clearTimeout(batchTimer);clearTimeout(paceTimer);clearTimeout(deadline);this.cancelCollection=null;this.stats.connections=0;this.stats.state=error||this.stats.rejected.length?'partial':'idle';this.stats.lastError=error?.message||null;if(error)this.retryAt=this.now()+30000;try{socket?.close(1000,'ticker collection complete');}catch{}this.notifySnapshots();resolve();};
         this.cancelCollection=()=>finish(aborted());this.stats={...this.stats,state:'connecting',requested:0,acknowledged:0,verifiedSnapshots:0,rejected:[]};
         const guard=()=>{clearTimeout(batchTimer);batchTimer=setTimeout(()=>finish(new Error(`Kraken ${phase} timeout`)),this.ackTimeoutMs);};
         const send=(method,params,id)=>socket.send(JSON.stringify({method,params,req_id:id}));
@@ -79,7 +81,7 @@
             for(const raw of p.data){const row=batch?.byWs.get(raw.symbol);if(!row||!batch.acked.has(raw.symbol)||batch.rejected.has(raw.symbol)||phase!=='subscribe')continue;
               const value=contract.wsTicker(raw,this.now());if(!value)throw new Error('Invalid Kraken ticker timestamp');const previous=this.ws.get(row.nativeSymbol);if(!previous||value.sourceTimestamp>=previous.sourceTimestamp)this.ws.set(row.nativeSymbol,value);
               if(!batch.received.has(raw.symbol)){batch.received.add(raw.symbol);this.stats.verifiedSnapshots++;}
-            }progress();
+            }this.notifySnapshots();progress();
           }catch(error){finish(error);}});
         }catch(error){finish(error);}
       }).finally(()=>{this.collecting=null;});
@@ -88,7 +90,7 @@
     async allSnapshots(signal){
       const mapping=await this.catalog(signal);
       if(!this.refreshPending&&(this.lastRefreshAt===null||this.now()-this.lastRefreshAt>=this.cacheTtlMs))this.refreshPending=(async()=>{
-        await Promise.all([this.collect(mapping),this.request('Ticker').then(rows=>{this.stats.lastRestError=null;const at=this.now();for(const row of mapping.byNative.values())if(Object.hasOwn(rows,row.nativeSymbol))this.rest.set(row.nativeSymbol,contract.restTicker(rows[row.nativeSymbol],at));}).catch(error=>{this.stats.lastRestError=error.message;})]);this.lastRefreshAt=this.now();
+        await Promise.all([this.collect(mapping),this.request('Ticker').then(rows=>{this.stats.lastRestError=null;const at=this.now();for(const row of mapping.byNative.values())if(Object.hasOwn(rows,row.nativeSymbol))this.rest.set(row.nativeSymbol,contract.restTicker(rows[row.nativeSymbol],at));this.notifySnapshots();}).catch(error=>{this.stats.lastRestError=error.message;})]);this.lastRefreshAt=this.now();
       })().finally(()=>{this.refreshPending=null;});
       if(this.refreshPending)await observe(this.refreshPending,signal);
       return [...mapping.byNative.values()].map(row=>contract.snapshot(row,this.rest.get(row.nativeSymbol),this.ws.get(row.nativeSymbol),this.now(),this.maxAgeMs));
@@ -98,7 +100,7 @@
     async candles(...args){return this.chartContract.candles(this,...args);}
     socket(...args){return this.chartContract.socket(this,...args);}
     diagnostics(){return{...this.stats,catalogAt:this.catalogAt,admitted:this.mapping?.byNative.size||0,excluded:this.catalogMetadata.length,cacheSize:this.ws.size,capabilities:this.capabilities};}
-    dispose(){this.disposed=true;this.cancelCollection?.();for(const controller of this.controllers)controller.abort();}
+    dispose(){this.snapshotListeners.clear();this.disposed=true;this.cancelCollection?.();for(const controller of this.controllers)controller.abort();}
   }
   return {KrakenBrowserAdapter};
 });

@@ -109,7 +109,7 @@ test('BingX ack and heartbeat timeouts terminate unverified/dead streams',async(
 });
 test('BingX UI shares watchlist table/tile identity and filter, keeps shared Alerts/Radar enablement',()=>{
   const app=fs.readFileSync(require.resolve('../app.js'),'utf8'),html=fs.readFileSync(require.resolve('../index.html'),'utf8');
-  const filter=html.match(/id="watchlist-exchange-filter"[\s\S]*?<\/select>/)[0];assert.deepEqual([...filter.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['all','binance','bybit','okx','bingx','coinbase','kraken']);
+  const filter=html.match(/id="watchlist-exchange-filter"[\s\S]*?<\/select>/)[0];assert.deepEqual([...filter.matchAll(/value="([^"]+)"/g)].map(m=>m[1]),['all']);assert.match(app,/ZychExchangeAdapterV2\.registry\.filter\(adapter=>capabilityAdmitted\(adapter\.marketTypes\.spot\.capabilities\.watchlist\)\)/);
   assert.match(app,/entries\.map\(watchTileMarkup\)/);assert.match(app,/entries\.map\(watchRowMarkup\)/);assert.match(app,/selectMarketId\(chartAction\.dataset\.watchChart\)/);assert.match(app,/token===generation&&activeSocket===socket/);
   assert.equal(core.SUPPORTED_EXCHANGES.includes('bingx'),true);assert.equal(core.createAlert({exchange:'bingx',symbol:'BTC-USDT',marketType:'spot',type:'price',targetPrice:10}),null); // malformed definitions remain rejected
   assert.match(html.match(/id="radar-exchange-filter"[\s\S]*?<\/select>/)[0],/bingx/);
