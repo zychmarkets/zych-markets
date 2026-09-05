@@ -772,9 +772,9 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 .context-classification{font-weight:600}
 
 #markets{--color-positive:#00dc00;--color-negative:#ff260c;--positive:var(--color-positive);--negative:var(--color-negative);--color-bg-panel:#06131c;--color-border-panel:#1b3441;background:#020910}
-#markets :is(.markets-pulse-card,.markets-panel,.markets-lower-dashboard>article,.markets-future-strip,.markets-global-slot,.markets-table-panel){background:linear-gradient(125deg,#030c13 0%,#061720 68%,#041018 100%);border-color:#1b3441;box-shadow:inset 0 1px 0 rgba(113,173,197,.035)}
+#markets :is(.markets-pulse-card,.markets-panel,.markets-lower-dashboard>article,.markets-future-strip,.markets-global-slot,.markets-table-panel){background:linear-gradient(125deg,#02090e 0%,#031119 68%,#030d14 100%);border-color:#1b3441;box-shadow:inset 0 1px 0 rgba(113,173,197,.035)}
 #markets .markets-heatmap>button.up{background:linear-gradient(135deg,#08701c,#075016)}
-#markets .markets-heatmap>button.down{background:linear-gradient(135deg,#a31820,#710f16)}
+#markets .markets-heatmap>button.down{background:linear-gradient(135deg,#a01912,#70100b)}
 #markets .markets-heatmap>button.neutral{background:#07141b}
 #markets [data-context-detail]{color:#a9b5ba}
 #markets [data-context-detail] a{color:#b9c8ce}
@@ -782,7 +782,7 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 
 /* Reference comparison at 1536×1024: typography, gauge proportions and icon accents. */
 body:has(#markets:not([hidden])){background:#020910}
-#markets .markets-pulse-card{height:auto;min-height:150px}
+#markets .markets-pulse-card{height:auto;min-height:128px}
 #markets :is(.markets-pulse-card b,.markets-panel h2,.markets-lower-dashboard h2,.markets-future-strip b){font-weight:450}
 #markets .markets-pulse-card strong{font-weight:400}
 #markets :is(.markets-live-meta,.markets-hero>div>small,[data-context-detail],.markets-future-strip small){color:#b6c3cb;font-size:10px;line-height:1.35;letter-spacing:normal}
@@ -799,3 +799,28 @@ body:has(#markets:not([hidden])){background:#020910}
 #markets .markets-future-strip article:nth-child(2)>i{color:#80abff;background:radial-gradient(circle,#194586,#081b34)}
 #markets .markets-future-strip article:nth-child(3)>i{color:#bd8cff;background:radial-gradient(circle,#472975,#171126)}
 #markets .markets-future-strip article:nth-child(4)>i,#markets .markets-future-strip article:nth-child(5)>i{color:#ffd448;background:radial-gradient(circle,#17372c,#081813)}
+
+/* Keep the reference density while retaining visible source attribution. */
+#markets .markets-hero h1{font-weight:400}
+#markets .markets-pulse-card{padding:9px 12px}
+#markets .context-card.markets-gauge-slot{grid-template-rows:auto 55px auto;gap:3px 8px}
+#markets .context-gauge{width:100%;max-width:104px;height:auto;aspect-ratio:2/1;align-self:center}
+#markets .context-reading{grid-column:2;grid-row:2;align-self:center;display:grid;gap:3px}
+#markets .context-reading strong{font-size:20px;white-space:nowrap}
+#markets .context-reading .context-classification{font-size:11px;font-weight:400;line-height:1.1}
+#markets .context-scale-start,#markets .context-scale-end{position:absolute;bottom:-12px;font-size:9px;color:#bbc4c9;font-style:normal;line-height:10px}
+#markets .context-scale-start{left:0}#markets .context-scale-end{right:0}
+#markets .context-card [data-context-detail]{font-size:10px;line-height:1.15}
+#markets .markets-future-strip{margin:7px 0;min-height:70px}
+#markets .markets-future-strip article{padding:5px 9px;min-height:70px}
+#markets .markets-future-strip article>div{gap:1px 6px}
+#markets .markets-future-strip [data-context-detail]{font-size:10px;line-height:1.1}
+#markets .markets-mini-list :is(b,em,strong,small){font-size:11px;font-weight:400}
+#markets .markets-table-head{font-size:11px}
+#markets .markets-data-row{font-size:12px}
+#markets .markets-data-row small{font-size:10px}
+#markets .markets-heatmap>button{container-type:inline-size;padding:4px 3px}
+#markets .markets-heatmap b{font-size:clamp(10px,16cqw,16px);white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;font-weight:400}
+#markets .markets-heatmap span{font-size:clamp(9px,12cqw,11px)}
+#markets .markets-future-strip article>i{background:none!important;box-shadow:none;width:27px;height:27px}
+#markets .markets-future-strip svg{display:block;width:27px;height:27px}

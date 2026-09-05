@@ -35,8 +35,10 @@
       node.classList.toggle('markets-source-missing', view.number === null);
       const value = node.querySelector('[data-context-value]'), detail = node.querySelector('[data-context-detail]');
       if (value) value.textContent = view.value;
+      const classification = node.querySelector('[data-context-classification]');
+      if (classification) classification.textContent = view.classification;
       if (detail) {
-        detail.innerHTML = `${view.classification ? `<span class="context-classification">${escape(view.classification)}</span> · ` : ''}${escape(view.scope)}<br>` +
+        detail.innerHTML = `${view.classification && !classification ? `<span class="context-classification">${escape(view.classification)}</span> · ` : ''}${escape(view.scope)}<br>` +
           `${view.status !== 'current' ? escape(t(`context.${view.status}`)) + ' · ' : ''}` +
           `<a href="${links[key]}" target="_blank" rel="noopener noreferrer">Alternative.me</a>` +
           (view.asOf ? `<br>${escape(view.asOf)}` : '');
