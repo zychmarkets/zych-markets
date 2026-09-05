@@ -45,7 +45,8 @@
     }
   }
   class Client {
-    constructor({ fetchImpl = globalThis.fetch, onChange = () => {}, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+    // Browser host functions must retain their global receiver when stored on a client.
+    constructor({ fetchImpl = (...args) => globalThis.fetch(...args), onChange = () => {}, setTimer = (...args) => globalThis.setTimeout(...args), clearTimer = (...args) => globalThis.clearTimeout(...args) } = {}) {
       Object.assign(this, { fetchImpl, onChange, setTimer, clearTimer, payload: null, pending: null, timer: null, stopped: false });
     }
     refresh() {

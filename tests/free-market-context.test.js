@@ -5,6 +5,43 @@ const { createFreeMarketContext, normalize, SOURCES } = require('../server/free-
 const { presentation, render, Client } = require('../js/services/free-market-context');
 const { createHttpServer } = require('../server/http-server');
 const NOW = 1788638400000;
+test('default browser functions retain the global receiver during refresh and disposal', async () => {
+  const vm = require('node:vm'), fs = require('node:fs');
+  const context = vm.createContext({ AbortController, Response });
+  vm.runInContext(`
+    'use strict';
+    globalThis.calls = [];
+    globalThis.setTimeout = function (callback, delay) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation');
+      calls.push(['setTimeout', delay]); return calls.length;
+    };
+    globalThis.clearTimeout = function (id) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation');
+      calls.push(['clearTimeout', id]);
+    };
+    globalThis.fetch = async function (url) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation');
+      calls.push(['fetch', url]);
+      return new Response(JSON.stringify({ generatedAt: 1788638400000, metrics: {
+        fearGreed: { value: 73, status: 'current' },
+        totalCap: { value: 2500000000000, status: 'current' },
+        btcDominance: { value: 64, status: 'current' }
+      }}));
+    };
+  `, context);
+  vm.runInContext(fs.readFileSync(require.resolve('../js/services/free-market-context'), 'utf8'), context);
+  await vm.runInContext(`(async () => {
+    const client = new ZychFreeMarketContext.Client();
+    await client.refresh();
+    globalThis.result = client.payload;
+    client.dispose();
+  })()`, context);
+  assert.equal(context.result.metrics.fearGreed.value, 73);
+  assert.equal(context.result.metrics.fearGreed.status, 'current');
+  assert.equal(context.calls.filter(call => call[0] === 'fetch').length, 1);
+  assert.ok(context.calls.some(call => call[0] === 'setTimeout' && call[1] === 60000));
+  assert.equal(context.calls.filter(call => call[0] === 'clearTimeout').length, 3);
+});
 function fixtures() {
   return {
     fearGreed: { data: [{ value: '0', timestamp: String(NOW / 1000 - 3600), value_classification: 'Extreme Fear' }], metadata: { error: null } },
