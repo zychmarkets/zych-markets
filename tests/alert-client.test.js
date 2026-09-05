@@ -3,9 +3,9 @@ const assert=require('node:assert/strict');
 const {ServerAlertClient,resolveAlertApiBase}=require('../js/alerts/server-alert-client.js');
 const {applyCors}=require('../server/http-server.js');
 
-test('alert API uses same origin normally and the canonical backend for alternate local origins',()=>{
+test('alert API stays on its deployment origin; only file previews use the legacy backend',()=>{
   assert.equal(resolveAlertApiBase({protocol:'http:',hostname:'127.0.0.1',port:'4178'}),'/api');
-  assert.equal(resolveAlertApiBase({protocol:'http:',hostname:'localhost',port:'5173'}),'http://127.0.0.1:4178/api');
+  assert.equal(resolveAlertApiBase({protocol:'http:',hostname:'localhost',port:'5173'}),'/api');
   assert.equal(resolveAlertApiBase({protocol:'file:',hostname:'',port:''}),'http://127.0.0.1:4178/api');
   assert.equal(resolveAlertApiBase({protocol:'https:',hostname:'localhost',port:'5173'}),'/api');
 });
@@ -39,3 +39,18 @@ test('client reports backend monitoring diagnostics instead of inferring LIVE fr
 test('polling and navigation re-renders cannot replay a seen trigger or remove history',async()=>{const original=global.fetch,notified=[],renders=[],trigger={id:'stable-trigger',alertId:'a',marketId:'binance:spot:BTCUSDT'},triggerResponses=[[],[trigger],[trigger],[],[trigger]];global.fetch=async url=>{const path=new URL(url).pathname;if(path.endsWith('/alerts'))return{ok:true,status:200,json:async()=>({alerts:[]})};if(path.endsWith('/triggers'))return{ok:true,status:200,json:async()=>({triggers:triggerResponses.shift()||[]})};return{ok:true,status:200,json:async()=>({alerts:{monitoringStatus:'IDLE'}})}};try{const client=new ServerAlertClient({baseUrl:'http://127.0.0.1:4178/api',notifier:{notify:event=>notified.push(event.id)},onChange:(_alerts,history)=>renders.push(history.map(event=>event.id))});for(let index=0;index<5;index++)await client.sync();assert.deepEqual(notified,['stable-trigger']);assert.deepEqual(client.events(),[trigger]);assert.deepEqual(renders.at(-1),['stable-trigger'])}finally{global.fetch=original}});
 
 test('a duplicated TriggerEvent id in one server response is observed once',async()=>{const original=global.fetch,notified=[],trigger={id:'duplicate-response-trigger',alertId:'a',marketId:'binance:spot:BTCUSDT'};let polls=0;global.fetch=async url=>{const path=new URL(url).pathname;if(path.endsWith('/alerts'))return{ok:true,status:200,json:async()=>({alerts:[]})};if(path.endsWith('/triggers'))return{ok:true,status:200,json:async()=>({triggers:polls++?[trigger,trigger,trigger]:[]})};return{ok:true,status:200,json:async()=>({alerts:{monitoringStatus:'IDLE'}})}};try{const client=new ServerAlertClient({baseUrl:'http://127.0.0.1:4178/api',notifier:{notify:event=>notified.push(event.id)}});await client.sync();await client.sync();assert.deepEqual(notified,['duplicate-response-trigger'])}finally{global.fetch=original}});
+
+test('isolated review on 4188 sends alert creation, sync and push to 4188, never 4178',async()=>{
+  const fs=require('node:fs'),vm=require('node:vm'),urls=[];
+  const location={protocol:'http:',hostname:'127.0.0.1',port:'4188',href:'http://127.0.0.1:4188/'};
+  const context={location,AbortController,setTimeout,clearTimeout,fetch:async(path,options={})=>{
+    const url=new URL(path,location.href);urls.push(url.href);
+    return{ok:true,status:options.method==='POST'?201:200,json:async()=>url.pathname==='/api/alerts'?(options.method==='POST'?{alert:{id:'review-alert'}}:{alerts:[{id:'review-alert'}]}):url.pathname==='/api/triggers'?{triggers:[]}:{alerts:{monitoringStatus:'LIVE'}}};
+  }};context.window=context;vm.createContext(context);
+  vm.runInContext(fs.readFileSync(require.resolve('../js/alerts/server-alert-client.js'),'utf8'),context);
+  vm.runInContext(fs.readFileSync(require.resolve('../js/notifications/push-manager.js'),'utf8'),context);
+  const client=new context.ZychAlerts.ServerAlertClient();assert.equal((await client.create({})).alert.id,'review-alert');
+  const push=new context.ZychNotifications.PushManagerController({button:{dataset:{},setAttribute(){}}});await context.fetch(`${push.baseUrl}/push/status`);
+  assert.equal(urls.length,5);assert.ok(urls.every(url=>new URL(url).origin==='http://127.0.0.1:4188'));
+  const explicit=new context.ZychAlerts.ServerAlertClient({baseUrl:'http://localhost:9000/api'});assert.equal(explicit.baseUrl,'http://localhost:9000/api');
+});

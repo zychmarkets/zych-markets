@@ -7,9 +7,8 @@
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
   function resolveAlertApiBase(location=global.location){
     if(!location)return'/api';
-    const hostname=String(location.hostname||'').toLowerCase(),port=String(location.port||''),protocol=String(location.protocol||'');
-    if(protocol==='file:')return'http://127.0.0.1:4178/api';
-    if(protocol==='http:'&&['localhost','127.0.0.1'].includes(hostname)&&port&&port!=='4178')return'http://127.0.0.1:4178/api';
+    // HTTP deployments use their own backend, including isolated review ports.
+    if(location.protocol==='file:')return'http://127.0.0.1:4178/api';
     return'/api';
   }
   const networkFailure=error=>error?.name==='TypeError'||error?.name==='AbortError';
