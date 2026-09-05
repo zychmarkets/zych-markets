@@ -748,7 +748,7 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 [data-context-status="stale"] [data-context-value]{color:#e7b668}
 .context-card.markets-gauge-slot{position:relative}
 .context-card.markets-gauge-slot>[data-context-value]{position:relative;align-self:flex-end;font-size:18px;margin:4px 0}
-.context-gauge{position:absolute;left:14px;top:33px;width:55px;height:28px;border:5px solid #29b6d4;border-bottom:0;border-radius:60px 60px 0 0}
+.context-gauge{position:absolute;left:14px;top:33px;width:55px;height:28px;border:0;border-radius:60px 60px 0 0}
 .context-needle{position:absolute;bottom:0;left:50%;height:22px;width:2px;background:#edf5f5;transform-origin:50% 100%}
 .context-dominance{position:relative;min-height:107px;display:grid;grid-template-columns:76px 1fr;align-items:center;gap:4px 12px;padding:8px 14px}
 .context-dominance-ring{grid-row:1/3;width:70px;height:70px;border-radius:50%;background:#253841;position:relative}
@@ -759,3 +759,23 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 @media(max-height:850px){.context-card{height:auto;min-height:128px}}
 
 .markets-future-strip:has([data-free-context]){height:auto;min-height:70px}
+
+/* Approved Markets palette: fear → neutral → greed; BTC is orange. */
+#markets,.sentiment-panel{--context-btc-color:#ff9900;--context-fear-color:#ff260c;--context-neutral-color:#ffd400;--context-greed-color:#00dc00}
+.context-gauge::before,#markets-pulse .unavailable-gauge::before{content:"";position:absolute;inset:0;width:100%;height:100%;border-radius:80px 80px 0 0;background:conic-gradient(from 270deg at 50% 100%,#e5230c 0deg,#ff9000 45deg,#ffe000 90deg,#37b900 135deg,#008d12 180deg,transparent 180deg);mask:radial-gradient(farthest-side at 50% 100%,transparent calc(100% - 5px),#000 0);-webkit-mask:radial-gradient(farthest-side at 50% 100%,transparent calc(100% - 5px),#000 0)}
+#markets-pulse .unavailable-gauge{border:0;background:none}
+#markets-pulse .unavailable-gauge::after{display:none}
+[data-context-tone="fear"] .context-classification{color:var(--context-fear-color,#ff5b52)}
+[data-context-tone="neutral"] .context-classification{color:var(--context-neutral-color,#f3cf63)}
+[data-context-tone="greed"] .context-classification{color:var(--context-greed-color,#39e529)}
+[data-context-status="stale"] .context-classification{color:var(--text-secondary,#9aafb7)}
+.context-classification{font-weight:600}
+
+#markets{--color-positive:#00dc00;--color-negative:#ff260c;--positive:var(--color-positive);--negative:var(--color-negative);--color-bg-panel:#041017;--color-border-panel:#152831}
+#markets :is(.markets-pulse-card,.markets-panel,.markets-lower-dashboard>article,.markets-future-strip,.markets-global-slot,.markets-table-panel){background:linear-gradient(135deg,#020a0e,#041017);border-color:#152831;box-shadow:none}
+#markets .markets-heatmap>button.up{background:linear-gradient(135deg,#0b5c17,#06430e)}
+#markets .markets-heatmap>button.down{background:linear-gradient(135deg,#921c0d,#59130a)}
+#markets .markets-heatmap>button.neutral{background:#07141b}
+#markets [data-context-detail]{color:#a9b5ba}
+#markets [data-context-detail] a{color:#b9c8ce}
+#markets .context-dominance-ring:after{background:#041017}

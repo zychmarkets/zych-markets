@@ -29,11 +29,14 @@
       if (!Object.hasOwn(links, key)) continue;
       const view = presentation(key, payload?.metrics?.[key], options);
       node.dataset.contextStatus = view.status;
+      const sentiment = payload?.metrics?.[key]?.classification;
+      node.dataset.contextTone = key === 'fearGreed' && view.number !== null
+        ? ({'Extreme Fear':'fear','Fear':'fear','Neutral':'neutral','Greed':'greed','Extreme Greed':'greed'}[sentiment] || 'unknown') : 'unknown';
       node.classList.toggle('markets-source-missing', view.number === null);
       const value = node.querySelector('[data-context-value]'), detail = node.querySelector('[data-context-detail]');
       if (value) value.textContent = view.value;
       if (detail) {
-        detail.innerHTML = `${escape([view.classification, view.scope].filter(Boolean).join(' · '))}<br>` +
+        detail.innerHTML = `${view.classification ? `<span class="context-classification">${escape(view.classification)}</span> · ` : ''}${escape(view.scope)}<br>` +
           `${view.status !== 'current' ? escape(t(`context.${view.status}`)) + ' · ' : ''}` +
           `<a href="${links[key]}" target="_blank" rel="noopener noreferrer">Alternative.me</a>` +
           (view.asOf ? `<br>${escape(view.asOf)}` : '');
@@ -41,7 +44,7 @@
       const needle = node.querySelector('.context-needle');
       if (needle) { needle.hidden = view.number === null; needle.style.transform = `rotate(${(view.number ?? 50) * 1.8 - 90}deg)`; }
       const ring = node.querySelector('.context-dominance-ring');
-      if (ring) ring.style.backgroundImage = view.number === null ? 'none' : `conic-gradient(var(--accent-cyan, #29b6d4) ${view.number}%, #253841 0)`;
+      if (ring) ring.style.backgroundImage = view.number === null ? 'none' : `conic-gradient(var(--context-btc-color, #ff9900) ${view.number}%, #253841 0)`;
     }
   }
   class Client {
