@@ -10,7 +10,7 @@ const { JsonStorageAdapter, validSubscription } = require('../server/storage/jso
 const { WebPushNotifier, notificationText } = require('../server/notifiers/web-push-notifier.js');
 const {PushManagerController,resolvePushApiBase}=require('../js/notifications/push-manager.js');
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
-const subscription = endpoint => ({ endpoint, keys: { p256dh: 'p'.repeat(65), auth: 'a'.repeat(16) } });
+const subscription = endpoint => ({ endpoint, keys: { p256dh: require('node:crypto').createECDH('prime256v1').generateKeys().toString('base64url'), auth: Buffer.alloc(16,1).toString('base64url') } });
 const trigger = { id: 'trigger-1', alertId: 'alert-1', asset: 'BTC', symbol: 'BTCUSDT', exchange: 'binance', alertType: 'price', triggerPrice: 78500, triggeredAt: 1000, condition: { type: 'price', operator: 'above', value: 78499 } };
 
 test('subscription validation, deduplication and restart persistence', async () => {

@@ -1,10 +1,10 @@
 (function(global,factory){
-  const api=factory(typeof module==='object'&&module.exports?require('../exchanges/exchange-adapter-v2.js'):global.ZychExchangeAdapterV2);
+  const api=factory(typeof module==='object'&&module.exports?require('../exchanges/exchange-adapter-v2.js'):global.ZychExchangeAdapterV2,typeof module==='object'&&module.exports?require('./snapshot-reliability.js'):global.ZychSnapshotReliability);
   if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychWatchlist=api;
-})(typeof window!=='undefined'?window:globalThis,function(adapters){
+})(typeof window!=='undefined'?window:globalThis,function(adapters,reliability){
   'use strict';
   if(!adapters)throw new Error('Adapter v2 registry is required');
-  const MARKET_TYPE='spot';
+  const MARKET_TYPE='spot',MAX_ITEMS=50;
   const capabilityAdmitted=capability=>Boolean(capability)&&capability.state!=='UNSUPPORTED';
   const definition=value=>adapters.get(value?.exchange,value?.marketType||MARKET_TYPE);
   const identity=market=>definition(market)?.identity.canonicalId(market?.nativeSymbol||market?.symbol,market?.marketType||MARKET_TYPE)||null;
@@ -28,17 +28,19 @@
       const market=markets.find(candidate=>candidate.enabled&&candidate.exchange===exchange&&candidate.asset===asset&&candidate.quoteAsset==='USDT')||markets.find(candidate=>candidate.enabled&&candidate.exchange===exchange&&candidate.asset===asset);
       return market?entry(market):null;
     }).filter(Boolean);
-    return [...new Map(resolved.map(item=>[item.key,item])).values()].slice(0,50);
+    return [...new Map(resolved.map(item=>[item.key,item])).values()];
   };
   const contains=(items,market)=>{const key=identity(market);return Boolean(key)&&items.some(item=>structurallyValid(item)&&identity(item)===key)};
-  const toggle=(items,market)=>{if(!watchlistAdmitted(market))return items;const key=identity(market);return contains(items,market)?items.filter(item=>identity(item)!==key):[...items,entry(market)].slice(-50)};
+  const toggle=(items,market)=>{if(!watchlistAdmitted(market))return items;const key=identity(market);return contains(items,market)?items.filter(item=>identity(item)!==key):items.length>=MAX_ITEMS?items:[...items,entry(market)]};
   const resolve=(item,markets)=>{if(!structurallyValid(item))return null;const key=identity(item);return markets.find(market=>structurallyValid(market)&&identity(market)===key)||null};
   const finite=value=>(typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value));
-  const view=(items,markets,states,snapshots={})=>items.filter(watchlistAdmitted).map(item=>{
+  const view=(items,markets,states,snapshots={},now=Date.now())=>items.filter(watchlistAdmitted).map(item=>{
     const load=states[item.exchange]||{catalog:'loading',quotes:'idle'},resolved=load.catalog==='ready'?resolve(item,markets):null;
     const market=resolved&&watchlistAdmitted(resolved)?resolved:null,snapshot=market?snapshots[market.id]:null;
-    const status=load.catalog==='error'?'catalogError':load.catalog!=='ready'?'catalogLoading':!market?'notFound':load.quotes==='error'||snapshot?.refreshFailed?'quotesError':finite(snapshot?.lastPrice)?'ready':load.quotes==='loading'||load.quotes==='idle'?'quotesLoading':'quotesUnavailable';
+    const quality=snapshot?reliability.evaluate(snapshot,item.exchange,{now,failed:snapshot.refreshFailed}):null;
+    const quoteStatus=quality?.state==='FRESH'?'ready':quality?.state==='CACHED'?'quotesCached':quality?.state==='PARTIAL'?'quotesPartial':quality?.state==='STALE'?'quotesStale':'quotesUnverified';
+    const status=load.catalog==='error'?'catalogError':load.catalog!=='ready'?'catalogLoading':!market?'notFound':load.quotes==='error'||snapshot?.refreshFailed?'quotesError':finite(snapshot?.lastPrice)?quoteStatus:load.quotes==='loading'||load.quotes==='idle'?'quotesLoading':'quotesUnavailable';
     return {item,market:market||{...item,id:identity(item),nativeSymbol:item.symbol,displaySymbol:item.symbol},resolved:Boolean(market),status,snapshot};
   });
-  return{MARKET_TYPE,capabilityAdmitted,identity,structurallyValid,watchlistAdmitted,entry,migrate,contains,toggle,resolve,finite,view};
+  return{MARKET_TYPE,MAX_ITEMS,capabilityAdmitted,identity,structurallyValid,watchlistAdmitted,entry,migrate,contains,toggle,resolve,finite,view};
 });

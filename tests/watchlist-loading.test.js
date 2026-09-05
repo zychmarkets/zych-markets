@@ -16,7 +16,7 @@ test('saved Kraken row is visible during slow catalog, then resolves before slow
   const f=fixture({kraken:{discover:()=>catalog.promise,allSnapshots:()=>quotes.promise},bingx:{discover:()=>other.promise,allSnapshots:async()=>[]}});
   const run=f.loader.start();let row=f.view()[0];assert.equal(row.status,'catalogLoading');assert.equal(row.resolved,false);assert.equal(row.market.symbol,'XXBTZUSD');assert.equal(row.market.exchange,'kraken');assert.equal(row.market.marketType,'spot');assert.equal(row.snapshot,null);
   catalog.resolve([kraken]);await f.loader.wait('kraken');await tick();row=f.view()[0];assert.equal(row.status,'quotesLoading');assert.equal(row.resolved,true);assert.equal(row.market.id,saved.key);assert.deepEqual(f.events,[['catalog','kraken']]);
-  quotes.resolve([{marketId:kraken.id,lastPrice:123,changePercent:null}]);await tick();assert.equal(f.view()[0].status,'ready');assert.equal(f.view()[0].snapshot.lastPrice,123);
+  quotes.resolve([{marketId:kraken.id,lastPrice:123,receivedAt:Date.now(),changePercent:null}]);await tick();assert.equal(f.view()[0].status,'ready');assert.equal(f.view()[0].snapshot.lastPrice,123);
   other.resolve([bingx]);await run;f.loader.dispose();
 });
 test('one failed catalog does not block another exchange; error and missing pair are distinct',async()=>{
@@ -47,7 +47,7 @@ test('pending row markup allows removal but has no chart identity or enabled cha
   vm.createContext(context);vm.runInContext(source.slice(source.indexOf('  const watchRowMarkup='),source.indexOf('  function renderWatchlist()'))+'\nthis.rowMarkup=watchRowMarkup;this.tileMarkup=watchTileMarkup;',context);
   const row=watch.view([saved],[],{kraken:{catalog:'loading'}})[0];for(const markup of [context.rowMarkup(row),context.tileMarkup(row)]){assert.match(markup,/XXBTZUSD/);assert.match(markup,/catalogLoading/);assert.doesNotMatch(markup,/data-market-id=/);assert.doesNotMatch(markup,/>0(?:%|<)/);}
   assert.match(context.rowMarkup(row),/data-remove-watch="kraken:spot:XXBTZUSD"/);assert.match(context.rowMarkup(row),/data-watch-chart="" disabled/);
-  context.state={watchlist:[saved]};let persisted;Object.assign(context,{saveWatchlist:()=>persisted=JSON.stringify(context.state.watchlist),renderWatchlist(){},renderMarket(){},renderMarketsDashboard(){},searchResults:{hidden:true}});
+  context.state={watchlist:[saved]};let persisted;Object.assign(context,{saveWatchlist:value=>{persisted=JSON.stringify(value);return true},renderWatchlist(){},renderMarket(){},renderMarketsDashboard(){},searchResults:{hidden:true}});
   vm.runInContext(source.slice(source.indexOf('  function removeWatchlistEntry('),source.indexOf("  const watchlistWorkspace=")),context);context.removeWatchlistEntry(saved.key);assert.equal(persisted,'[]');
 });
 test('late quotes after exchange switch update only exact market cache, not selected market or Watchlist',()=>{

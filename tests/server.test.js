@@ -106,7 +106,7 @@ test('HTTP API health, CRUD, validation and malformed payload', async () => {
   assert.equal((await fetch(`${base}/alerts/${id}/pause`, { method: 'POST' })).status, 200); assert.equal((await fetch(`${base}/alerts/${id}/resume`, { method: 'POST' })).status, 200);
   assert.equal((await fetch(`${base}/alerts`, { method: 'POST', body: '{}' })).status, 422); assert.equal((await fetch(`${base}/alerts`, { method: 'POST', body: '{' })).status, 400);
   assert.equal((await fetch(`${base}/push/public-key`)).status, 503);
-  const pushRecord = { endpoint: 'https://push.example/device', keys: { p256dh: 'p'.repeat(65), auth: 'a'.repeat(16) } };
+  const pushRecord = { endpoint: 'https://push.example/device', keys: { p256dh: require('node:crypto').createECDH('prime256v1').generateKeys().toString('base64url'), auth: Buffer.alloc(16,1).toString('base64url') } };
   assert.equal((await fetch(`${base}/push/subscribe`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(pushRecord) })).status, 201);
   assert.equal((await fetch(`${base}/push/subscribe`, { method: 'POST', body: '{}' })).status, 422);
   assert.equal((await fetch(`${base}/push/unsubscribe`, { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: pushRecord.endpoint }) })).status, 200);

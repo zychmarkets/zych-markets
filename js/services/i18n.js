@@ -4,6 +4,28 @@
     en:{'nav.markets':'Markets','nav.watchlist':'Watchlist','nav.radar':'Radar','radar.marketTitle':'Market Radar','radar.tagline':'ZYCH detects unusual market activity.','common.retry':'Retry','common.settings':'Settings','common.system':'System','search.label':'Global symbol search','search.placeholder':'Search markets…','search.loading':'Loading market universe…','search.unavailable':'Market catalog unavailable','search.noResults':'No markets found','search.empty':'Type a symbol to search all exchanges','search.sort':'Market sorting','market.spot':'Spot','market.perpetual':'Perpetual','market.high':'High','market.low':'Low','market.volume':'Volume','market.indicators':'Indicators','watchlist.title':'Watchlist','watchlist.asset':'Asset','watchlist.last':'Last','watchlist.change':'Chg%','watchlist.empty':'Watchlist is empty','watchlist.find':'Find a market','radar.title':'Radar','radar.preparing':'Radar is being prepared','radar.description':'Market events will appear here when the Radar Engine is ready.','settings.language':'Language','alert.create':'Create Alert','connection.loading':'Loading market data…','connection.connecting':'Connecting','connection.live':'Live','connection.offline':'Offline','connection.reconnecting':'Reconnecting','connection.liveData':'live market data','connection.streamUnavailable':'Live stream unavailable','connection.connectingTo':'Connecting to'},
     ru:{'nav.markets':'Рынки','nav.watchlist':'Избранное','nav.radar':'Радар','radar.marketTitle':'Рыночный радар','radar.tagline':'ZYCH обнаруживает необычную рыночную активность.','common.retry':'Повторить','common.settings':'Настройки','common.system':'Системный','search.label':'Глобальный поиск инструментов','search.placeholder':'Поиск рынков…','search.loading':'Загрузка списка рынков…','search.unavailable':'Каталог рынков недоступен','search.noResults':'Рынки не найдены','search.empty':'Введите символ для поиска на всех биржах','search.sort':'Сортировка рынков','market.spot':'Спот','market.perpetual':'Бессрочный','market.high':'Макс.','market.low':'Мин.','market.volume':'Объём','market.indicators':'Индикаторы','watchlist.title':'Избранное','watchlist.asset':'Актив','watchlist.last':'Цена','watchlist.change':'Изм.%','watchlist.empty':'Список пуст','watchlist.find':'Найти рынок','radar.title':'Радар','radar.preparing':'Радар готовится','radar.description':'Рыночные события появятся здесь после запуска Radar Engine.','settings.language':'Язык','alert.create':'Создать алерт','connection.loading':'Загрузка рыночных данных…','connection.connecting':'Подключение','connection.live':'Онлайн','connection.offline':'Офлайн','connection.reconnecting':'Переподключение','connection.liveData':'рыночные данные онлайн','connection.streamUnavailable':'Поток данных недоступен','connection.connectingTo':'Подключение к'}
   };
+  Object.assign(messages.en,{
+    'watchlist.limitReached':'Watchlist is full (50 instruments). Remove one before adding another.',
+    'storage.failed':'Changes could not be saved on this device. Free storage or check browser permissions and try again.',
+    'watchlist.quotesStale':'Outdated quote', 'watchlist.quotesCached':'Cached quote',
+    'watchlist.quotesPartial':'Partial data', 'watchlist.quotesUnverified':'Quote age unavailable',
+    'markets.volumeScope':'Volume rankings and heatmap: {quote} pairs only · {count}/{total} quotes available',
+    'markets.volumeWithinQuote':'Volume (within quote currency)',
+    'markets.pairBreadth':'Based on trading pairs, not unique coins',
+    'common.comingLater':'Planned for a later stage',
+    'chart.noteSaveFailed':'Note could not be saved. Keep a copy and try again.'
+  });
+  Object.assign(messages.ru,{
+    'watchlist.limitReached':'В Watchlist уже 50 инструментов. Удалите один, чтобы добавить новый.',
+    'storage.failed':'Не удалось сохранить изменения на устройстве. Проверьте свободное место и разрешения браузера и повторите действие.',
+    'watchlist.quotesStale':'Котировка устарела', 'watchlist.quotesCached':'Котировка из кеша',
+    'watchlist.quotesPartial':'Неполные данные', 'watchlist.quotesUnverified':'Возраст котировки неизвестен',
+    'markets.volumeScope':'Рейтинг объёмов и тепловая карта: только пары в {quote} · данные {count}/{total}',
+    'markets.volumeWithinQuote':'Объём (внутри валюты котировки)',
+    'markets.pairBreadth':'Расчёт по торговым парам, а не уникальным монетам',
+    'common.comingLater':'Запланировано на следующем этапе',
+    'chart.noteSaveFailed':'Заметка не сохранена. Скопируйте текст и повторите попытку.'
+  });
   messages.en['search.topMatches']='TOP MATCHES';messages.en['search.otherMarkets']='OTHER MARKETS';messages.ru['search.topMatches']='ЛУЧШИЕ СОВПАДЕНИЯ';messages.ru['search.otherMarkets']='ДРУГИЕ РЫНКИ';
   messages.en['connection.subscribing']='Subscribing';messages.ru['connection.subscribing']='Подписка';
   Object.assign(messages.en,{'nav.chart':'Chart','nav.primary':'Primary navigation','common.login':'Login'});
@@ -37,7 +59,7 @@
   let preference='system',active='en';
   function load(){try{const value=storage()?.getItem(STORAGE_KEY);preference=value==='en'||value==='ru'?value:'system'}catch{preference='system'}active=preference==='system'?systemLocale():preference;return active}
   function t(key){return messages[active]?.[key]??messages.en[key]??key}
-  function apply(root=global.document){if(!root)return;root.documentElement?.setAttribute('lang',active);root.querySelectorAll?.('[data-i18n]').forEach(node=>node.textContent=t(node.dataset.i18n));root.querySelectorAll?.('[data-i18n-placeholder]').forEach(node=>node.setAttribute('placeholder',t(node.dataset.i18nPlaceholder)));root.querySelectorAll?.('[data-i18n-aria]').forEach(node=>node.setAttribute('aria-label',t(node.dataset.i18nAria)))}
+  function apply(root=global.document){if(!root)return;root.documentElement?.setAttribute('lang',active);root.querySelectorAll?.('[data-i18n]').forEach(node=>node.textContent=t(node.dataset.i18n));root.querySelectorAll?.('[data-i18n-placeholder]').forEach(node=>node.setAttribute('placeholder',t(node.dataset.i18nPlaceholder)));root.querySelectorAll?.('[data-i18n-title]').forEach(node=>node.setAttribute('title',t(node.dataset.i18nTitle)));root.querySelectorAll?.('[data-i18n-aria]').forEach(node=>node.setAttribute('aria-label',t(node.dataset.i18nAria)))}
   function setPreference(value){preference=value==='en'||value==='ru'?value:'system';try{storage()?.setItem(STORAGE_KEY,preference)}catch{}active=preference==='system'?systemLocale():preference;apply();global.dispatchEvent?.(new CustomEvent('zych:languagechange',{detail:{locale:active,preference}}));return active}
   function locale(){return active==='ru'?'ru-RU':'en-US'}
   load();const api={STORAGE_KEY,SUPPORTED,messages,resolveLocale,t,apply,load,setPreference,preference:()=>preference,locale};if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychI18n=api;

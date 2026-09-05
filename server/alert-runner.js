@@ -7,22 +7,39 @@ class ServerAlertRunner {
     this.core = core; this.storage = storage; this.transport = transport; this.notifier = notifier; this.logger = logger; this.now = now; this.debug = debug; this.alerts = []; this.history = []; this.previousPrices = new Map(); this.status = 'stopped'; this.queue = Promise.resolve();
     this.deliveries = new Map(); this.pendingTriggers = new Map(); this.marketEvidence = new Map(); this.priceEpochs = new Map(); this.processing = { depth: 0, lastEvaluatedAt: null, lastSuccessAt: null, lastError: null }; this.persistence = { state: 'UNKNOWN', lastSuccessAt: null }; this.evaluations = new Map();
   }
-  async start() { this.alerts = this.storage.loadAlerts(); this.history = this.storage.loadTriggerHistory(); this.previousPrices.clear(); this.priceEpochs.clear(); this.marketEvidence.clear(); this.evaluations.clear(); this.deliveries.clear(); this.status = 'running'; await this.rebuild(); this.logger.info('runner_started', { alerts: this.alerts.length, active: this.active().length }); }
+  async start() { this.alerts = this.storage.loadAlerts(); this.history = this.storage.loadTriggerHistory(); this.previousPrices.clear(); this.priceEpochs.clear(); this.marketEvidence.clear(); this.evaluations.clear(); this.deliveries.clear(); this.status = 'running'; this.notifier.start?.(); await this.rebuild(); this.logger.info('runner_started', { alerts: this.alerts.length, active: this.active().length }); }
   active() { return this.alerts.filter(item => item.status === 'active'); }
   list() { return structuredClone(this.alerts); }
   events() { return structuredClone(this.history.filter(event => !this.pendingTriggers.has(event.id))).reverse(); }
-  async create(definition) {
+  // User mutations and incoming ticks share one queue; publish only persisted state.
+  mutate(operation) {
+    const result = this.queue.then(operation);
+    this.queue = result.catch(() => {});
+    return result;
+  }
+  create(definition) { return this.mutate(() => this.createPersisted(definition)); }
+  updatePrice(id, value) { return this.mutate(() => this.updatePricePersisted(id, value)); }
+  remove(id) { return this.mutate(() => this.removePersisted(id)); }
+  removeEvent(id) { return this.mutate(() => this.removeEventPersisted(id)); }
+  change(id, mutate) { return this.mutate(() => this.changePersisted(id, mutate)); }
+  async commitMutation(alerts, history = this.history) {
+    await this.persist(alerts, history);
+    this.alerts = alerts;
+    this.history = history;
+  }
+  async createPersisted(definition) {
+    if(this.alerts.length>=1000)return {error:"ALERT_LIMIT",message:"This installation has reached its 1000 alert limit. Remove unused alerts first."};
     const alert = this.core.createAlert(definition, { id: crypto.randomUUID(), now: this.now() });
     if (!alert) return { error: 'INVALID_ALERT', message: 'Invalid alert definition.' };
     const unsupported=await this.transport.validateAlert?.(alert,definition);if(unsupported)return unsupported;
     if (this.alerts.some(item => item.status !== 'triggered' && this.core.alertFingerprint(item) === this.core.alertFingerprint(alert))) return { error: 'DUPLICATE_ALERT', message: 'This alert already exists.' };
-    this.alerts.push(alert); await this.persist(); await this.rebuild();
+    await this.commitMutation([...this.alerts, alert]); await this.rebuild();
     const currentPrice=this.previousPrices.get(this.core.marketIdentity(alert)),target=Number(alert.condition?.value),alreadySatisfied=alert.type==='price'&&Number.isFinite(currentPrice)&&(alert.condition.operator==='above'?currentPrice>target:currentPrice<target);
     return { alert: structuredClone(alert), ...(alreadySatisfied?{warning:{code:'WAITING_FOR_RECROSS',message:`Current price ${currentPrice} already satisfies this condition. The alert will wait for a future directional recross of ${target}.`,currentPrice,target}}:{}) };
   }
   async pause(id) { return this.change(id, alert => ({ ...alert, status: 'paused', updatedAt: this.now() })); }
   async resume(id) { return this.change(id, alert => ({ ...alert, status: 'active', armed: true, updatedAt: this.now() })); }
-  async updatePrice(id, value) {
+  async updatePricePersisted(id, value) {
     const index = this.alerts.findIndex(item => item.id === id), price = Number(value);
     if (index < 0) return { error: 'NOT_FOUND', message: 'Alert not found.' };
     const current = this.alerts[index];
@@ -30,14 +47,28 @@ class ServerAlertRunner {
     const next = { ...current, condition: { ...current.condition, value: price } };
     if (!this.core.validateAlert(next)) return { error: 'INVALID_ALERT', message: 'Invalid alert update.' };
     if (this.alerts.some((item, itemIndex) => itemIndex !== index && item.status !== 'triggered' && this.core.alertFingerprint(item) === this.core.alertFingerprint(next))) return { error: 'DUPLICATE_ALERT', message: 'This alert already exists.' };
-    this.alerts[index] = next; await this.persist(); await this.rebuild(); return { alert: structuredClone(next) };
+    await this.commitMutation(this.alerts.map((alert, i) => i === index ? next : alert)); await this.rebuild(); return { alert: structuredClone(next) };
   }
-  async remove(id) { const before = this.alerts.length; this.alerts = this.alerts.filter(item => item.id !== id); if (before === this.alerts.length) return null; await this.persist(); await this.rebuild(); return true; }
-  async removeEvent(id) { const before = this.history.length; this.history = this.history.filter(item => item.id !== id); if (before === this.history.length) return null; await this.persist(); return true; }
-  async change(id, mutate) { const index = this.alerts.findIndex(item => item.id === id); if (index < 0) return null; this.alerts[index] = mutate(this.alerts[index]); await this.persist(); await this.rebuild(); return structuredClone(this.alerts[index]); }
-  async persist() {
+  async removePersisted(id) {
+    const alerts = this.alerts.filter(item => item.id !== id);
+    if (alerts.length === this.alerts.length) return null;
+    await this.commitMutation(alerts); await this.rebuild(); return true;
+  }
+  async removeEventPersisted(id) {
+    const history = this.history.filter(item => item.id !== id);
+    if (history.length === this.history.length) return null;
+    await this.commitMutation(this.alerts, history); return true;
+  }
+  async changePersisted(id, mutate) {
+    const current = this.alerts.find(item => item.id === id);
+    if (!current) return null;
+    const next = mutate(current);
+    await this.commitMutation(this.alerts.map(item => item.id === id ? next : item));
+    await this.rebuild(); return structuredClone(next);
+  }
+  async persist(alerts = this.alerts, history = this.history) {
     const pending = [...this.pendingTriggers.values()];
-    try { await this.storage.save(this.alerts, this.history); this.persistence = { state: 'READY', lastSuccessAt: this.now() }; for (const event of pending) { this.dispatch(event); this.pendingTriggers.delete(event.id); } }
+    try { await this.storage.save(alerts, history); this.persistence = { state: 'READY', lastSuccessAt: this.now() }; for (const event of pending) { this.dispatch(event); this.pendingTriggers.delete(event.id); } }
     catch (error) { this.persistence = { ...this.persistence, state: 'FAILED', lastErrorAt: this.now(), reasonCode: 'STORAGE_WRITE_FAILED' }; throw error; }
   }
   dispatch(event) {
@@ -108,7 +139,7 @@ class ServerAlertRunner {
     if (evaluationError) throw evaluationError;
     if (evaluatedSuccessfully) { this.processing.lastSuccessAt = this.now(); this.processing.lastError = null; }
   }
-  async stop() { this.status = 'stopping'; try { await this.queue; await this.persist(); } finally { await this.transport.stop(); this.status = 'stopped'; } await this.storage.close(); }
+  async stop() { this.status = 'stopping'; try { await this.queue; await this.persist(); } finally { await this.transport.stop(); await this.notifier.stop?.(); this.status = 'stopped'; } await this.storage.close(); }
   diagnostics() {
     const active=this.active(),markets=new Set(active.map(item=>this.core.marketIdentity(item))),transport=this.transport.diagnostics();
     const reliability = alertDiagnostics(this);

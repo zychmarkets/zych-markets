@@ -11,5 +11,12 @@
   const compareNumber=(key,direction='desc')=>(a,b)=>{const av=number(a[key]),bv=number(b[key]);if(av===null&&bv===null)return a.marketId.localeCompare(b.marketId);if(av===null)return 1;if(bv===null)return-1;return(direction==='asc'?av-bv:bv-av)||a.marketId.localeCompare(b.marketId)};
   const rank=(items,key,direction='desc',limit=5)=>(items||[]).filter(value=>number(value[key])!==null).sort(compareNumber(key,direction)).slice(0,limit);
   const breadth=items=>{const changes=(items||[]).map(value=>number(value.change24h)).filter(value=>value!==null),rising=changes.filter(value=>value>0).length,falling=changes.filter(value=>value<0).length,flat=changes.length-rising-falling,total=changes.length;return{rising,falling,flat,total,risingPct:total?rising/total*100:null,fallingPct:total?falling/total*100:null}};
-  const api={number,timestamp,percent,snapshot,item,compareNumber,rank,breadth};if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychMarketsData=api;
+  // Monetary rankings are meaningful only within one quote currency.
+  const volumeScope=(items,quote='USDT')=>{
+    const rows=items.filter(item=>item.quoteAsset===quote),verified=rows.filter(item=>number(item.quoteVolume24h)!==null);
+    return {quote,rows,verified,total:rows.length&&verified.length===rows.length?verified.reduce((sum,item)=>sum+Number(item.quoteVolume24h),0):null};
+  };
+  const compareQuoteNumber=(key,direction='desc')=>(a,b)=>String(a.quoteAsset||'').localeCompare(String(b.quoteAsset||''))||compareNumber(key,direction)(a,b);
+  const money=(value,quote,formatter=value=>String(value))=>number(value)===null?'—':`${formatter(Number(value))}${quote?' '+quote:''}`;
+  const api={volumeScope,compareQuoteNumber,money,number,timestamp,percent,snapshot,item,compareNumber,rank,breadth};if(typeof module==='object'&&module.exports)module.exports=api;else global.ZychMarketsData=api;
 })(typeof window!=='undefined'?window:globalThis);

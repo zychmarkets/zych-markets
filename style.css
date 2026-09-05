@@ -735,3 +735,8 @@ button:disabled:hover,select:disabled:hover,input:disabled:hover,textarea:disabl
 .watchlist-load-status{display:block;color:var(--text-secondary);font-size:10px;line-height:1.4;white-space:normal}
 
 #markets-coverage{white-space:normal}.markets-metric-coverage,#markets-gainers-coverage,#markets-losers-coverage{display:block;color:var(--text-secondary);font-size:10px;line-height:1.4}
+
+/* Visible feedback for failed local writes and the Watchlist limit. */
+.workspace-feedback{margin:8px 16px;padding:10px 14px;border:1px solid var(--color-status-degraded,#dfac48);border-radius:8px;color:var(--color-text-primary,#eee);background:var(--color-surface-panel,#142232)}
+.watchlist-load-status{display:block;white-space:normal}
+[data-watch-status="quotesStale"],[data-watch-status="quotesCached"],[data-watch-status="quotesUnverified"]{opacity:.8}

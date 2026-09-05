@@ -15,7 +15,7 @@
   const networkFailure=error=>error?.name==='TypeError'||error?.name==='AbortError';
   class ServerAlertClient {
     constructor({ baseUrl = null, notifier = null, legacyStorage = null, onChange = () => {}, onStatus = () => {}, pollMs = 5000 } = {}) {
-      this.baseUrl = baseUrl || resolveAlertApiBase(); this.notifier = notifier; this.legacyStorage = legacyStorage; this.onChange = onChange; this.onStatus = onStatus; this.pollMs = pollMs; this.alerts = []; this.history = []; this.health = null; this.knownTriggers = new Set(); this.running = false; this.initialized = false; this.syncVersion = 0;
+      this.baseUrl = baseUrl || resolveAlertApiBase(); this.notifier = notifier; this.legacyStorage = legacyStorage; this.onChange = onChange; this.onStatus = onStatus; this.pollMs = pollMs; this.alerts = []; this.history = []; this.health = null; this.knownTriggers = new Set(); this.pendingNotifications = new Map(); this.running = false; this.initialized = false; this.syncVersion = 0;
     }
     list() { return [...this.alerts]; }
     events() { return [...this.history]; }
@@ -34,8 +34,19 @@
       const [alerts, triggers, health] = await Promise.all([this.request('/alerts'), this.request('/triggers'),this.request('/health')]);
       if (version !== this.syncVersion) return false;
       const incoming = triggers.triggers || [];
-      const unseen=incoming.slice().reverse().filter(event=>{if(this.knownTriggers.has(event.id))return false;this.knownTriggers.add(event.id);return true;});
-      if (this.initialized && notify) unseen.forEach(event => this.notifier?.notify(event));
+      // Initial history is silent. Later mutation-syncs must not consume new alerts.
+      for (const event of incoming.slice().reverse()) {
+        if (this.knownTriggers.has(event.id)) continue;
+        if (!this.initialized) this.knownTriggers.add(event.id);
+        else this.pendingNotifications.set(event.id, event);
+      }
+      if (this.initialized && notify) {
+        for (const [id, event] of this.pendingNotifications) {
+          this.notifier?.notify(event);
+          this.knownTriggers.add(id);
+          this.pendingNotifications.delete(id);
+        }
+      }
       this.alerts = alerts.alerts || []; this.history = incoming; this.health=health; this.initialized = true; this.onStatus(health.alerts?.monitoringStatus||'OFFLINE',health); this.onChange(this.list(), this.events());
       return true;
     }
@@ -50,7 +61,7 @@
       while (this.running) { try { await this.sync(); await this.migrateLegacy(); } catch { this.onStatus('OFFLINE'); } await sleep(this.pollMs); }
     }
     stop() { this.running = false; }
-    async create(definition) { try { const result = await this.request('/alerts', { method: 'POST', body: JSON.stringify(definition) }); await this.sync({ notify: false }); return result; } catch (error) { return { error: networkFailure(error) ? 'Alert service unavailable' : error.message, errorCode: networkFailure(error) ? 'NETWORK_UNAVAILABLE' : error.code || 'REQUEST_FAILED' }; } }
+    async create(definition) { try { const result = await this.request('/alerts', { method: 'POST', body: JSON.stringify(definition) }); try { await this.sync({ notify: false }); } catch { this.onStatus('OFFLINE'); return { ...result, syncPending: true }; } return result; } catch (error) { return { error: networkFailure(error) ? 'Alert service unavailable' : error.message, errorCode: networkFailure(error) ? 'NETWORK_UNAVAILABLE' : error.code || 'REQUEST_FAILED' }; } }
     updatePrice(id, value) { return this.request(`/alerts/${encodeURIComponent(id)}/price`, { method: 'PATCH', body: JSON.stringify({ value }) }); }
     updateStatus(id, status) { return this.request(`/alerts/${encodeURIComponent(id)}/${status === 'paused' ? 'pause' : 'resume'}`, { method: 'POST' }); }
     deleteAlert(id) { return this.request(`/alerts/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
