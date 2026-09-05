@@ -6,7 +6,7 @@
     const lastSnapshotAt=stamp(value.lastSnapshotAt??value.receivedAt),sourceTimestamp=stamp(value.sourceTimestamp),cacheStoredAt=stamp(value.cacheStoredAt),budget=POLICIES[exchange]||null;
     const ageMs=lastSnapshotAt!==null&&lastSnapshotAt<=now?now-lastSnapshotAt:null,sourceAgeMs=sourceTimestamp!==null&&sourceTimestamp<=now?now-sourceTimestamp:null,cacheHit=value.cacheHit===true;
     let state='UNAVAILABLE',reasonCode='SNAPSHOT_UNAVAILABLE';
-    if(lastSnapshotAt!==null){
+    if(lastSnapshotAt!==null&&ageMs!==null&&budget!==null){
       if(failed||cacheHit||ageMs>budget){state=cacheHit?'CACHED':'STALE';reasonCode=failed?'REFRESH_FAILED':cacheHit?'CACHE_HIT':ageMs>budget?'ACQUISITION_STALE':null}
       else if(value.partial===true){state='PARTIAL';reasonCode='PARTIAL_REFRESH'}
       else {state='FRESH';reasonCode=null}
